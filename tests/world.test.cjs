@@ -2,8 +2,8 @@ const assert = require('node:assert/strict');
 const {test} = require('node:test');
 const {readFileSync} = require('node:fs');
 const vm = require('node:vm');
-const source=['npc-memory.js','save-manager.js','world.js','town-map.js','town-movement.js'].map(name=>readFileSync(require('node:path').join(__dirname,'..',name),'utf8')).join('\n');
-const {Town,SaveManager,NPCMemory,TownMap,TownMovement}=vm.runInNewContext(source+'\n({Town,SaveManager,NPCMemory,TownMap,TownMovement})');
+const source=['npc-memory.js','save-manager.js','town-stories.js','world.js','town-map.js','town-movement.js'].map(name=>readFileSync(require('node:path').join(__dirname,'..',name),'utf8')).join('\n');
+const {Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories}=vm.runInNewContext(source+'\n({Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories})');
 function to(w,t){while(w.tick<t)Town.step(w);}
 function visualRandom(seed){
   return ()=>{
@@ -115,4 +115,60 @@ test('save manager accepts legacy data, retains backup and rejects invalid data'
   assert.equal(SaveManager.load(storage,'town',Town.valid).seed,9);
   map.set('town','{');
   assert.equal(SaveManager.load(storage,'town',Town.valid).seed,5);
+});
+test('inviting a suitable helper spends one die and the project resumes from a snapshot',()=>{
+  const w=Town.create(18);to(w,15);
+  assert.equal(Town.startStory(w,0,4),false);
+  assert.ok(Town.startStory(w,0,1));
+  assert.equal(Town.startStory(w,1,1),false);
+  assert.ok(Town.inviteStory(w));
+  assert.equal(w.tokens,2);
+  assert.equal(Town.inviteStory(w),false);
+  const restored=JSON.parse(JSON.stringify(w));
+  assert.ok(Town.valid(restored));
+  to(w,85);to(restored,85);
+  assert.equal(JSON.stringify(w),JSON.stringify(restored));
+  assert.equal(w.townStory.result,'done');
+  assert.equal(w.keepsakes.join(','),'0');
+  assert.equal(w.events.filter(e=>e.type==='story-done').length,1);
+  assert.ok(NPCMemory.recall(w,1).some(m=>m.interpretation.includes('面包长桌')));
+  assert.ok(w.people.find(p=>p.id===4).trust[1]>0);
+});
+test('attendance and relationships affect outcomes, and a timely redirect completes the other plan',()=>{
+  const missed=Town.create(18);to(missed,15);
+  assert.ok(Town.startStory(missed,0,1));
+  to(missed,83);
+  assert.equal(missed.townStory.result,'missed');
+  assert.match(missed.events.find(e=>e.type==='story-missed').text,/没能在约定时间到场/);
+
+  const redirected=Town.create(18);to(redirected,15);
+  assert.ok(Town.startStory(redirected,1,1));
+  to(redirected,82);
+  assert.ok(Town.influence(redirected,1,'visit','square'));
+  Town.step(redirected);
+  assert.equal(redirected.townStory.result,'done');
+  assert.equal(redirected.keepsakes.join(','),'1');
+
+  const distrust=Town.create(18);to(distrust,15);
+  distrust.people.find(p=>p.id===1).trust[4]=-50;
+  assert.ok(Town.startStory(distrust,1,1));
+  assert.equal(Town.inviteStory(distrust),false);
+  to(distrust,82);
+  assert.ok(Town.influence(distrust,1,'visit','square'));
+  Town.step(distrust);
+  assert.match(distrust.events.find(e=>e.type==='story-missed').text,/到了现场，还是没答应帮忙/);
+  assert.equal(TownStories.offer(distrust).title,'没写地址的包裹');
+});
+test('the six project plans can each unlock their own collectible',()=>{
+  for(let day=0;day<TownStories.stories.length;day++){
+    for(let plan=0;plan<2;plan++){
+      const w=Town.create(18);to(w,day*48+15);
+      const helper=w.people.find(p=>TownStories.eligible(w,{story:day,plan},p));
+      assert.ok(Town.startStory(w,plan,helper.id));
+      assert.ok(Town.inviteStory(w));
+      to(w,w.townStory.time);
+      assert.equal(w.townStory.result,'done');
+      assert.equal(w.keepsakes.join(','),String(day*2+plan));
+    }
+  }
 });

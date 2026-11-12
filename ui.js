@@ -11,6 +11,7 @@ if(isNew){
 }
 let timer=null,audio=null,running=false,fast=false,choosingPlace=false,frame=null;
 let lastFrame=null,manualUntil=0;
+let draftPlan=0,draftHelper=null,shownOffer=-1;
 let crowd=TownMovement.create(world),mapPins=crowd.pins();
 let seenStory=world.sequence;
 let watched=Number.isInteger(world.watchedEvent)?world.watchedEvent:null;
@@ -63,7 +64,7 @@ function resetCrowd(){
   mapPins=crowd.pins();
 }
 function refreshMotion(){
-  const active=!motion.matches&&!document.hidden&&!$('journal').open&&(running||performance.now()<manualUntil);
+  const active=!motion.matches&&!document.hidden&&!modalOpen()&&(running||performance.now()<manualUntil);
   if(active&&frame===null)frame=requestAnimationFrame(animate);
   if(!active&&frame!==null){cancelAnimationFrame(frame);frame=null;lastFrame=null;}
 }
@@ -94,6 +95,98 @@ canvas.addEventListener('click',event=>{
   if(closest.pin){$('person').value=closest.pin.resident.id;render();}
 });
 function when(tick){return `第 ${Math.floor(tick/48)+1} 天 ${String(Math.floor(tick%48/2)).padStart(2,'0')}:${tick%2?'30':'00'}`;}
+const modalOpen=()=>$('journal').open||$('stories').open;
+function storyNode(tag,value,css){
+  const node=document.createElement(tag);
+  node.textContent=value;
+  if(css)node.className=css;
+  return node;
+}
+function storyButton(label,action,css){
+  const button=storyNode('button',label,css);
+  button.onclick=action;
+  return button;
+}
+function renderBoard(){
+  const active=TownStories.active(world),offer=TownStories.offer(world);
+  const marker=$('storyMarker');
+  marker.hidden=!active;
+  $('storyButtonTitle').textContent=active?TownStories.planFor(active).name:offer.title;
+  $('storyButtonDetail').textContent=active?`${when(active.time)} · ${Town.places[TownStories.planFor(active).place].name}`:
+    `镇务告示 · 收藏 ${world.keepsakes?.length??0} / 6`;
+  if(active){
+    const {left,top}=TownMap.marker(TownStories.planFor(active).place);
+    marker.style.left=`${left}%`;marker.style.top=`${top}%`;
+  }
+}
+function renderStories(){
+  const panel=$('storyPanel'),active=TownStories.active(world),offer=TownStories.offer(world);
+  panel.replaceChildren();
+  if(active){
+    const plan=TownStories.planFor(active),helper=world.people.find(p=>p.id===active.helper);
+    const willing=TownStories.eligible(world,active,helper);
+    const place=Town.places[plan.place].name;
+    const forecast=Town.places[Town.forecast(world,helper,active.time)].name;
+    panel.append(storyNode('h3',plan.name),storyNode('p',`${when(active.time)} · ${place} · 搭档 ${helper.name}`,'story-meta'),
+      storyNode('p',active.invited?`${helper.name} 已留出时间。请让两人按约定到场。`:
+        willing?`${helper.name} 愿意搭手。按目前的日程，届时可能在${forecast}。`:
+          `${helper.name} 目前还不愿接这项活。可以设法让两人碰面，或看看他们的关系会怎么变。`));
+    const actions=storyNode('div','','story-actions');
+    const invite=storyButton(active.invited?'已经约好':world.tokens>0?'约好时间 · 1 次干预':'约好时间 · 今日次数已用完',()=>{
+      if(Town.inviteStory(world)){save();render();$('storyPanel').querySelector('h3').focus();}
+    },'story-primary');
+    invite.disabled=active.invited||!willing||world.tokens<1;
+    actions.append(invite,storyButton(`在地图上观察 ${helper.name}`,()=>{
+      $('person').value=helper.id;$('stories').close();render();
+    }));
+    if(world.tick<active.time-2)actions.append(storyButton('前进到集合前 1 小时',()=>{
+      while(world.tick<active.time-2)Town.step(world);
+      resetCrowd();save();render();$('storyPanel').querySelector('h3').focus();
+    }));
+    panel.firstElementChild.tabIndex=-1;
+    panel.append(actions,storyNode('p','到约定时刻，两人需要都在现场。你也可以用「改道」让搭档准时到场。','story-meta'));
+  }else{
+    const past=world.townStory;
+    if(past){
+      const result=world.events.findLast(e=>e.parent===past.root&&['story-done','story-missed'].includes(e.type));
+      if(result)panel.append(storyNode('p',result.text,'story-result'));
+    }
+    const today=Math.floor(world.tick/48);
+    if(past?.day===today){panel.append(storyNode('p','明天再来查看新的告示。'));}
+    else{
+      if(shownOffer!==today){shownOffer=today;draftPlan=0;draftHelper=null;}
+      panel.append(storyNode('h3',offer.title),storyNode('p',offer.intro));
+      const choices=storyNode('div','','story-choices');
+      const requirements={bakery:'面包店员工',market:'商业街员工',station:'车站员工',generous:'热心的居民'};
+      offer.plans.forEach((plan,index)=>{
+        const choice=storyButton('',()=>{draftPlan=index;draftHelper=null;renderStories();$(`plan-${index}`).focus();});
+        choice.id=`plan-${index}`;
+        choice.setAttribute('aria-pressed',String(index===draftPlan));
+        choice.append(storyNode('strong',plan.name),storyNode('span',plan.description),storyNode('small',`推荐 ${requirements[plan.skill]}，或信任发起人的居民`));
+        choices.append(choice);
+      });
+      panel.append(choices);
+      const proposal={story:offer.index,plan:draftPlan};
+      const deadline=(today+1)*48+35;
+      const venue=TownStories.planFor(proposal).place;
+      const candidates=world.people.filter(p=>p.id!==offer.host).map(p=>({p,
+        willing:TownStories.eligible(world,proposal,p),there:Town.forecast(world,p,deadline)===venue}));
+      candidates.sort((a,b)=>Number(b.willing)*2+Number(b.there)-Number(a.willing)*2-Number(a.there));
+      const label=storyNode('label','选择搭档');label.htmlFor='storyHelper';
+      const select=document.createElement('select');select.id='storyHelper';
+      for(const {p,willing,there} of candidates)option(select,p.id,`${p.name} · ${willing?'愿意搭手':'暂时不愿意'}${there?' · 日程会经过':''}`);
+      if(draftHelper!==null)select.value=draftHelper;
+      select.onchange=()=>{draftHelper=Number(select.value);};
+      const start=storyButton('开始筹备',()=>{
+        if(Town.startStory(world,draftPlan,Number(select.value))){save();render();$('storyPanel').querySelector('h3').focus();}
+      },'story-primary');
+      const actions=storyNode('div','','story-actions');actions.append(label,select,start);
+      panel.append(storyNode('p',`${when(deadline)} · ${Town.places[venue].name}`,'story-meta'),actions);
+    }
+  }
+  const collection=(world.keepsakes??[]).map(key=>TownStories.stories[Math.floor(key/2)].plans[key%2].keepsake);
+  panel.append(storyNode('p',collection.length?`小镇收藏 ${collection.length} / 6 · ${collection.join('、')}`:'小镇收藏 0 / 6','story-collection'));
+}
 function describeCauses(event){
   const causes=[];
   let parent=event.parent;
@@ -162,6 +255,8 @@ function render(){
   $('mapStory').hidden=!latest;
   $('mapStoryText').textContent=latest?.text||'';
   $('unread').hidden=!latest||latest.id<=seenStory;
+  renderBoard();
+  if($('stories').open)renderStories();
   if($('journal').open)renderJournal();
   renderFollow();
   paint();
@@ -173,7 +268,7 @@ function advance(){
 }
 function scheduleNext(delay=fast?1200:3600){
   clearTimeout(timer);
-  if(running&&!document.hidden&&!$('journal').open)timer=setTimeout(()=>{advance();scheduleNext();},delay);
+  if(running&&!document.hidden&&!modalOpen())timer=setTimeout(()=>{advance();scheduleNext();},delay);
 }
 function setRunning(next){
   running=next;
@@ -207,7 +302,12 @@ $('person').onchange=render;
 $('redirect').onclick=()=>{choosingPlace=!choosingPlace;render();};
 $('openJournal').onclick=$('mapStory').onclick=openJournal;
 $('closeJournal').onclick=()=>$('journal').close();
-$('journal').addEventListener('close',()=>{scheduleNext();refreshMotion();});
+function openStories(){
+  renderStories();$('stories').showModal();scheduleNext();refreshMotion();
+}
+$('openStories').onclick=$('storyMarker').onclick=openStories;
+$('closeStories').onclick=()=>$('stories').close();
+for(const id of ['journal','stories'])$(id).addEventListener('close',()=>{scheduleNext();refreshMotion();});
 $('sound').onclick=async()=>{
   if(audio){await audio.close();audio=null;}else{audio=new AudioContext();await audio.resume();beep();}
   const label=audio?'关闭音效':'开启音效';

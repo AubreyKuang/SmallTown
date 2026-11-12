@@ -3,8 +3,8 @@
 const TownMap = (() => {
   const colors = ['#ad554b','#366c87','#548062','#a77337','#68588d','#536b45'];
   const locations = {
-    homes:{x:191,y:263,labelY:298}, bakery:{x:430,y:213,labelY:181},
-    cafe:{x:588,y:198,labelY:167}, market:{x:768,y:223,labelY:194},
+    homes:{x:191,y:263,labelY:298}, bakery:{x:430,y:213,labelY:115},
+    cafe:{x:574,y:198,labelY:107}, market:{x:768,y:223,labelY:111},
     square:{x:551,y:357,labelY:425}, station:{x:780,y:465,labelY:517},
     forest:{x:228,y:416,labelY:465}
   };
@@ -32,32 +32,10 @@ const TownMap = (() => {
     ellipse(ctx,-7,-41,8,5,'#d5df8b55');
     ctx.restore();
   }
-  function house(ctx,x,y,w,h,roof,wall,shop,lit){
-    ellipse(ctx,x+w*.53,y+h+6,w*.65,12,'#53563230');
-    polygon(ctx,[[x+w,y],[x+w+15,y-12],[x+w+15,y+h-12],[x+w,y+h]],'#b08960');
-    ctx.fillStyle=wall;ctx.fillRect(x,y,w,h);
-    polygon(ctx,[[x-9,y+2],[x+w*.34,y-35],[x+w+9,y+2]],roof);
-    polygon(ctx,[[x+w*.34,y-35],[x+w*.34+15,y-47],[x+w+24,y-10],[x+w+9,y+2]],'#755647');
-    for(let i=0;i<4;i++){
-      const f=(i+1)/5;
-      line(ctx,[[x-9+(w*.34+9)*f,y+2-37*f],[x+w+9-(w*.66+9)*f,y+2-37*f]],'#fff1c13b',1.3);
-    }
-    ctx.fillStyle='#765a46';ctx.fillRect(x+w*.44,y+h-25,15,25);
-    for(const side of [.15,.73]){
-      const wx=x+w*side;
-      ctx.fillStyle='#765a46';ctx.fillRect(wx-2,y+9,17,17);
-      ctx.fillStyle=lit?'#fce2a0':'#81a4a1';ctx.fillRect(wx,y+11,13,13);
-      line(ctx,[[wx+6.5,y+11],[wx+6.5,y+24]],'#fff4ce',1);
-      line(ctx,[[wx,y+17],[wx+13,y+17]],'#fff4ce',1);
-    }
-    if(shop){
-      ctx.fillStyle='#fff1d0';ctx.fillRect(x-3,y+30,w+6,11);
-      ctx.fillStyle=roof;
-      for(let i=0;i<6;i++)ctx.fillRect(x-3+i*(w+6)/6,y+30,(w+6)/12,11);
-    }
-  }
   function terrain(ctx,lit){
-    ctx.fillStyle='#b7c888';ctx.fillRect(0,0,960,620);
+    const grass=ctx.createLinearGradient(0,0,960,620);
+    grass.addColorStop(0,'#91aa67');grass.addColorStop(.5,'#bcc987');grass.addColorStop(1,'#9eb781');
+    ctx.fillStyle=grass;ctx.fillRect(0,0,960,620);
     for(let i=0;i<46;i++){
       ellipse(ctx,(i*211)%991,(i*137)%643,48+(i%4)*17,19+(i%3)*7,i%2?'#9ab57938':'#d9d9a255');
     }
@@ -87,14 +65,7 @@ const TownMap = (() => {
     for(let i=0;i<17;i++)tree(ctx,29+i*55,65+(i*29)%40,.72+(i%4)*.15,i);
     for(let i=0;i<17;i++)tree(ctx,50+(i*73)%260,369+(i*43)%126,.62+(i%4)*.13,i);
     for(const [x,y] of [[342,211],[303,284],[464,146],[691,170],[841,239],[463,388],[624,374],[718,460],[874,352],[372,432],[665,592]])tree(ctx,x,y,.85,x);
-    house(ctx,78,159,71,56,'#ad5e4e','#f1d49f',false,lit);
-    house(ctx,186,143,80,61,'#728a6b','#f2dfb6',false,lit);
-    house(ctx,118,222,68,51,'#b07c4e','#efdbb2',false,lit);
-    house(ctx,217,224,70,54,'#926e86','#f2d5b8',false,lit);
-    house(ctx,381,156,83,58,'#b9724a','#f4deb5',true,lit);
-    house(ctx,526,135,95,62,'#617d73','#f0d9a3',true,lit);
-    house(ctx,718,156,90,65,'#a35f58','#f0d3a0',true,lit);
-    house(ctx,777,390,83,61,'#627e8b','#e9d2ac',false,lit);
+    TownArt.buildings(ctx,lit,{polygon,ellipse,line});
     ellipse(ctx,549,357,79,51,'#c3ab81');ellipse(ctx,547,352,74,47,'#eed4a6');
     ellipse(ctx,547,342,25,15,'#aa936c');ellipse(ctx,547,339,21,11,'#76aaa6');
     ellipse(ctx,545,337,7,4,'#c0ded1');
@@ -102,7 +73,17 @@ const TownMap = (() => {
       line(ctx,[[x,y],[x,y-21]],'#69624a',3);
       ellipse(ctx,x,y-23,4,4,lit?'#f9d37f':'#f2e1b2');
     }
-    for(let i=0;i<6;i++)line(ctx,[[634+i*8,479+i*7],[660+i*8,462+i*7]],'#ad8961',5);
+    line(ctx,[[729,600],[769,608],[818,608]],'#e5d4a5',12);
+    polygon(ctx,[[661,493],[680,487],[748,597],[727,609]],'#785d4d');
+    polygon(ctx,[[664,493],[679,490],[744,596],[728,605]],'#b99568');
+    for(let i=0;i<17;i++)line(ctx,[[664+i*4,494+i*6.8],[680+i*4,489+i*6.8]],'#d0ac78',3);
+    line(ctx,[[660,491],[727,606]],'#654f42',3);line(ctx,[[681,486],[749,598]],'#654f42',3);
+    TownArt.landscape(ctx,{ellipse,line});
+    for(let i=0;i<5600;i++){
+      const x=(i*313+i*i*5)%960,y=(i*157+i*i*3)%620;
+      ctx.fillStyle=i%2?'#fff4c70d':'#283b2410';
+      ctx.fillRect(x,y,1+(i%3===0),1);
+    }
   }
   const street = [[244,315],[359,275],[430,272],[551,268],[704,279],[769,287]];
   // Street-side stops and open ground, kept clear of buildings, water and the fountain.
@@ -187,11 +168,16 @@ const TownMap = (() => {
     }
     return backgrounds.get(key);
   }
+  function marker(place){
+    const {x,y}=locations[place];
+    return {left:(x+47)/9.6,top:(y+8)/6.2};
+  }
   function draw(ctx,world,selection,displayWidth,pins,choosingPlace){
     const labelScale=Math.min(1.8,Math.max(1,640/displayWidth));
     const hour=world.tick%48/2;
     const night=hour<6||hour>=20;
     ctx.drawImage(background(night,night&&!world.power,hour>=18),0,0);
+    TownArt.keepsakes(ctx,world.keepsakes??[],night,{polygon,ellipse,line});
     for(const {resident,place,x,y,step} of pins){
       if(resident.id===selection)ellipse(ctx,x,y+3,10,6,'#f9d17a');
       figure(ctx,resident,x,y,step);
@@ -218,5 +204,5 @@ const TownMap = (() => {
     }
     return pins;
   }
-  return { draw, stops, portrait, route, plan, position, findPlace };
+  return { draw, stops, portrait, route, plan, position, findPlace, marker };
 })();
