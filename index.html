@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#263e35">
 <title>上帝扔骰子 · 微光镇</title>
-<link rel="stylesheet" href="style.css?v=13">
+<link rel="stylesheet" href="style.css?v=14">
 </head>
 <body>
 <main class="game">
@@ -18,42 +18,46 @@
   </div>
 </header>
 <section class="playfield" aria-label="小镇地图">
-  <div class="map-frame">
-    <canvas id="map" width="960" height="620" aria-label="微光镇地图，点击居民查看详情"></canvas>
-    <div class="map-top">
-      <p class="map-hint" id="mapHint">点击居民打开档案</p>
-      <div class="time-controls" aria-label="地图与时间控制">
-        <button id="homeView" aria-pressed="true" title="切换全镇建筑剖面">屋内</button>
-        <button id="auto" aria-pressed="false" aria-label="继续时间" title="继续时间">▶</button>
-        <button id="speed" aria-label="切换速度" title="切换速度">1×</button>
-        <button id="step" aria-label="推进半小时" title="推进半小时">▸|</button>
+  <div class="map-stage">
+    <div class="map-frame">
+      <canvas id="map" width="960" height="620" aria-label="微光镇地图，点击居民查看详情"></canvas>
+      <div class="map-top">
+        <p class="map-hint" id="mapHint">点击居民打开档案</p>
       </div>
-    </div>
-    <button id="openSchool" class="school-entry" aria-label="查看学校日常">学校 ›</button>
-    <button id="openRail" class="rail-entry" aria-label="查看列车时刻">列车 ›</button>
-  </div>
-  <button id="mapStory" class="map-story" hidden><span id="mapStoryLabel">镇讯</span><span id="mapStoryText"></span><span aria-hidden="true">›</span></button>
-  <button id="openWish" class="wish-entry"><span aria-hidden="true">⚄</span><span id="wishPreview"></span><b>人物档案 ›</b></button>
-  <button class="town-board" id="openStories"><span class="board-icon" aria-hidden="true">▤</span><span><strong id="storyButtonTitle">镇务告示</strong><small id="storyButtonDetail"></small></span><span class="board-arrow" aria-hidden="true">›</span></button>
-  <div class="dock">
-    <div class="resident">
-      <canvas id="portrait" width="64" height="64" aria-hidden="true"></canvas>
-      <div><label class="sr-only" for="person">观察居民</label><select id="person"></select><p id="bio"></p></div>
-    </div>
-    <div class="fate">
-      <div class="fate-head"><h2>拨动命运</h2><p id="tokens"></p></div>
-      <div class="cards" aria-label="选择一次干预">
-        <button data-kind="coin"><span aria-hidden="true">◉</span>捡到硬币</button>
-        <button data-kind="lottery"><span aria-hidden="true">券</span>中彩票</button>
-        <button data-kind="bus"><span aria-hidden="true">↗</span>赶上公交</button>
-        <button data-kind="lost"><span aria-hidden="true">◇</span>丢失钥匙</button>
-        <button data-kind="delay" title="适用于尚未出发的班车乘客"><span aria-hidden="true">◷</span>错过班车</button>
-        <button id="redirect" aria-expanded="false"><span aria-hidden="true">⌖</span>改道</button>
-      </div>
-      <div id="destinations" class="destinations" hidden></div>
+      <button id="openSchool" class="school-entry" aria-label="查看学校日常">学校 ›</button>
+      <button id="openRail" class="rail-entry" aria-label="查看列车时刻">列车 ›</button>
     </div>
   </div>
-  <div id="follow" class="follow" aria-live="polite"></div>
+  <aside class="controls-panel" aria-label="小镇操作">
+    <div class="time-controls" aria-label="地图与时间控制">
+      <button id="homeView" aria-pressed="true" title="切换全镇建筑剖面">屋内</button>
+      <button id="auto" aria-pressed="false" aria-label="继续时间" title="继续时间">▶</button>
+      <button id="speed" aria-label="切换速度" title="切换速度">1×</button>
+      <button id="step" aria-label="推进半小时" title="推进半小时">▸|</button>
+    </div>
+    <button id="mapStory" class="map-story" hidden><span id="mapStoryLabel">镇讯</span><span id="mapStoryText"></span><span aria-hidden="true">›</span></button>
+    <button id="openWish" class="wish-entry"><span aria-hidden="true">⚄</span><span id="wishPreview"></span><b>人物档案 ›</b></button>
+    <button class="town-board" id="openStories"><span class="board-icon" aria-hidden="true">▤</span><span><strong id="storyButtonTitle">镇务告示</strong><small id="storyButtonDetail"></small></span><span class="board-arrow" aria-hidden="true">›</span></button>
+    <div class="dock">
+      <div class="resident">
+        <canvas id="portrait" width="64" height="64" aria-hidden="true"></canvas>
+        <div><label class="sr-only" for="person">观察居民</label><select id="person"></select><p id="bio"></p></div>
+      </div>
+      <div class="fate">
+        <div class="fate-head"><h2>拨动命运</h2><p id="tokens"></p></div>
+        <div class="cards" aria-label="选择一次干预">
+          <button data-kind="coin"><span aria-hidden="true">◉</span>捡到硬币</button>
+          <button data-kind="lottery"><span aria-hidden="true">券</span>中彩票</button>
+          <button data-kind="bus"><span aria-hidden="true">↗</span>赶上公交</button>
+          <button data-kind="lost"><span aria-hidden="true">◇</span>丢失钥匙</button>
+          <button data-kind="delay" title="适用于尚未出发的班车乘客"><span aria-hidden="true">◷</span>错过班车</button>
+          <button id="redirect" aria-expanded="false"><span aria-hidden="true">⌖</span>改道</button>
+        </div>
+        <div id="destinations" class="destinations" hidden></div>
+      </div>
+    </div>
+    <div id="follow" class="follow" aria-live="polite"></div>
+  </aside>
 </section>
 <dialog id="wish" aria-labelledby="wishTitle">
   <div class="journal-head"><h2 id="wishTitle" tabindex="-1">人物档案</h2><button id="closeWish" aria-label="关闭人物档案">×</button></div>
