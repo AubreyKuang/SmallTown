@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>上帝扔骰子 · 微光镇</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+<header><div><p class="eyebrow">微光镇</p><h1>上帝扔骰子</h1></div><p id="clock" aria-live="polite"></p></header>
+<div class="workspace">
+<section aria-label="小镇地图"><canvas id="map" width="480" height="270" aria-label="微光镇地图"></canvas>
+<div class="toolbar"><button id="step">推进半小时</button><button id="auto" aria-pressed="false">自动推进</button><button id="sound" aria-pressed="false">开启音效</button></div></section>
+<section class="controls" aria-label="拨动命运">
+<h2>拨动命运</h2><p id="tokens"></p>
+<label>居民 <select id="person"></select></label>
+<p id="bio"></p>
+<div class="actions">
+<button data-kind="delay">错过班车</button><button data-kind="lost">丢失钥匙</button>
+<button data-kind="coin">捡到硬币</button><button data-kind="bus">赶上公交</button>
+<button data-kind="lottery">中彩票</button>
+</div>
+<label>改道去 <select id="place"></select></label><button data-kind="visit">改变去处</button>
+<details><summary>居民记忆</summary><ul id="memories"></ul></details>
+</section>
+</div>
+<section class="timeline"><h2>镇上的事</h2><p id="notice" aria-live="polite"></p><ol id="events"></ol>
+<div class="toolbar"><button id="export">导出存档</button><label class="import">导入存档 <input id="import" type="file" accept="application/json,.json"></label><label><input id="offline" type="checkbox"> 离线推进</label></div>
+</section>
+</main>
+<script src="npc-memory.js"></script><script src="save-manager.js"></script><script src="world.js"></script><script src="ui.js"></script>
+</body></html>
