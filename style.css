@@ -34,6 +34,35 @@ dialog{width:min(760px,calc(100% - 24px));max-height:88vh;border:1px solid var(-
 
 .resident-section{display:grid;gap:7px;padding:10px 12px;border:1px solid #dac8a4;border-radius:9px;background:#f6edd8}.resident-section h3{font-size:18px}.profile-relations{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:5px}.profile-relations button{text-align:left;white-space:normal}.profile-relations small{display:block;color:var(--muted);font-size:11px}.profile-memories{padding-left:20px;color:#55634e;font-size:13px}
 
+/* Daily paper, fate book, causal threads */
+.dot{display:inline-block;width:7px;height:7px;margin-left:3px;background:var(--gold);border-radius:50%}
+.awareness{display:flex;align-items:center;gap:5px;margin-left:auto;color:#5b674e!important;font-weight:600!important}.awareness i{display:block;width:62px;height:7px;border-radius:4px;background:#e4dcc2;overflow:hidden}.awareness b{display:block;height:100%;background:#93a777;transition:width .4s}.awareness[data-level=mid] b{background:#d6a54c}.awareness[data-level=high] b{background:#c0573f}.awareness[data-level=high]{color:#a3442f!important}
+.fate-head{gap:10px}.fate-head p#tokens{white-space:nowrap}
+.quests{display:flex;align-items:center;gap:10px;width:100%;border:0;border-radius:0;border-top:1px solid #e3d5b4;padding:6px 16px;background:#efe5c8;text-align:left;font-size:13px;color:#4a573f}.quests strong{color:#7a5a2c;white-space:nowrap}.quests span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.quests small{white-space:nowrap;color:#6e5a33;font-weight:650}
+.follow em{font-style:normal;color:#8b6a2c;font-weight:650}.thread-entry{min-height:26px;padding:1px 8px;margin-left:8px;font-size:12px;background:#fff3d4}
+.toast{position:absolute;top:58px;left:50%;transform:translateX(-50%);z-index:3;display:grid;gap:2px;min-width:230px;max-width:min(420px,90%);padding:9px 14px;border-radius:12px;background:#2a4236f2;color:#fff3d6;border:1px solid #f2d79c88;box-shadow:0 10px 26px #14281f80;cursor:pointer;text-align:center;animation:toast .35s ease-out}.toast strong{color:var(--gold)}.toast span{font-size:13px}
+@keyframes toast{from{opacity:0;transform:translate(-50%,-8px)}to{opacity:1;transform:translate(-50%,0)}}
+.paper-dialog{width:min(820px,calc(100% - 24px))}
+.paper{padding:16px 20px 18px;display:grid;gap:12px;background:repeating-linear-gradient(0deg,#fbf3df 0 22px,#f6edd5 22px 23px);color:#2c3a30}
+.paper-mast{text-align:center;border-bottom:3px double #2c4236;padding-bottom:8px}.paper-mast h3{font:700 clamp(26px,5vw,38px)/1.1 "Songti SC","Noto Serif CJK SC",Georgia,serif;letter-spacing:.2em}.paper-mast p{font-size:13px;color:#6a5a3c;margin-top:4px}
+.paper-special{background:#a5452f;color:#fff5e2;padding:5px 10px;border-radius:6px;font-weight:700;font-size:13px;text-align:center}
+.paper-lead{display:grid;gap:6px;padding-bottom:10px;border-bottom:1px solid #cdbb94}.paper-lead h4{font:700 clamp(20px,3.6vw,27px)/1.25 "Songti SC","Noto Serif CJK SC",Georgia,serif}.paper-lead p{font-size:15px}.paper-link{justify-self:start;min-height:30px;padding:3px 10px;font-size:13px}
+.paper-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px 16px}.paper-col{display:grid;gap:3px;align-content:start;border-top:2px solid #2c4236;padding-top:5px}.paper-col h5{margin:0;font-size:13px;color:#7a5a2c;letter-spacing:.1em}.paper-col p{font-size:13px;line-height:1.5}
+.paper-actions{border-top:1px solid #d8c9a5;padding-top:10px}.paper-auto{margin-left:auto;font-size:13px;color:#5b674e;display:flex;align-items:center;gap:4px}
+.fate-tabs{display:flex;gap:4px;padding:10px 16px 0;flex-wrap:wrap}.fate-tabs button{min-height:32px;padding:4px 12px;font-size:13px;border-radius:9px 9px 0 0;border-bottom:0}.fate-tabs button[aria-selected=true]{background:#2a4236;color:#fff3d9;border-color:#2a4236}
+.fate-rank{font-weight:700;color:#6e4f27}
+.quest-card{display:grid;gap:3px;padding:10px 12px;border:1px solid #d9c9a2;border-radius:10px;background:#fbf4e0}.quest-card small{color:#5b674e}.quest-card.done{background:#e3edd6;border-color:#9db487}.quest-status{font-size:12px;color:#8b6a2c;font-weight:650}
+.badge-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}.badge{display:grid;justify-items:center;text-align:center;gap:4px;padding:10px 8px;border:1px solid #d9c9a2;border-radius:10px;background:#fbf4e0}.badge canvas{width:48px;height:48px;image-rendering:pixelated}.badge small{font-size:11px;color:#5b674e}.badge button{min-height:26px;padding:1px 8px;font-size:12px}.badge.locked{opacity:.62}.badge.rare:not(.locked){background:linear-gradient(160deg,#fff4d2,#f0dcae);border-color:#c9a258}
+.newton-notes{display:grid;gap:5px;padding-left:22px;font-size:13px;color:#3e4a3a;max-height:42vh;overflow:auto}
+.rewind-list{display:grid;gap:6px}.rewind-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;border-radius:8px;background:#efe6ce}
+.thread-roots{display:flex;flex-wrap:wrap;gap:5px}.thread-roots button{min-height:30px;padding:3px 9px;font-size:12px}.thread-roots button[aria-pressed=true]{background:#2a4236;color:#fff3d9}
+.thread-summary{font-weight:700;color:#6e4f27}
+.thread-tree,.thread-tree ul{list-style:none;margin:0;padding-left:18px}.thread-tree{padding-left:0;max-height:56vh;overflow:auto}.thread-tree li{position:relative;padding:3px 0 3px 12px;border-left:2px solid #d8c7a0}.thread-tree li::before{content:"";position:absolute;left:-2px;top:16px;width:10px;border-top:2px solid #d8c7a0}
+.thread-row{display:grid;gap:1px;padding:5px 9px;border-radius:8px;background:#f6eedb}.thread-row time{font-size:11px;color:#8a7a5a}.thread-row span{font-size:14px}
+.thread-tree li.tone-good>.thread-row{background:#e5efd8}.thread-tree li.tone-bad>.thread-row{background:#f4ddd3}
+@media(max-width:530px){.awareness i{width:38px}.quests{font-size:12px;padding:6px 10px}.quests span{white-space:normal}.paper{padding:12px}.top-actions button{padding:4px 4px}}
+@media(max-width:530px){.topbar{flex-wrap:wrap;row-gap:8px}.title h1,.clock p{white-space:nowrap}.top-actions{width:100%;justify-content:flex-end}.top-actions button{white-space:nowrap;padding:4px 9px}}
+
 
 /* Fit the complete town to the viewport and let the controls scroll independently. */
 .controls-panel{min-width:0}

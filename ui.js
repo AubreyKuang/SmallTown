@@ -3,7 +3,7 @@ const $=id=>document.getElementById(id);
 const KEY='god-dice-v1';
 const canvas=$('map'),ctx=canvas.getContext('2d');
 const motion=window.matchMedia('(prefers-reduced-motion: reduce)');
-let world=SaveManager.load(localStorage,KEY,Town.valid);
+let world=SaveManager.load(localStorage,KEY,Town.valid,Town.migrate);
 const isNew=!world;
 if(isNew){
   world=Town.create();
@@ -21,7 +21,21 @@ let heardConversation=false;
 let crowd=createCrowd(),mapPins=crowd.pins();
 let seenStory=world.sequence;
 let watched=Number.isInteger(world.watchedEvent)?world.watchedEvent:null;
-const save=()=>SaveManager.save(localStorage,KEY,{...world,watchedEvent:watched,savedAt:Date.now()},Town.valid);
+let snapDay=null;
+// Every save also keeps one snapshot per game day so the player can rewind to that morning.
+function save(){
+  const data={...world,watchedEvent:watched,savedAt:Date.now()};
+  const ok=SaveManager.save(localStorage,KEY,data,Town.valid);
+  const d=Math.floor(world.tick/48);
+  if(ok&&snapDay!==d){
+    snapDay=d;
+    if(!SaveManager.snapshots(localStorage,KEY).some(entry=>entry.label===`day-${d}`))
+      SaveManager.snapshot(localStorage,KEY,data,Town.valid,{label:`day-${d}`,day:d,tick:world.tick});
+  }
+  return ok;
+}
+let pulses=[],pulseSeq=world.sequence,fateTab='quests',paperIndex=0,threadRoot=null,toastTimer=null;
+let autoPaper=localStorage.getItem(KEY+':paper')!=='off';
 const selected=()=>world.people.find(p=>p.id===Number($('person').value))||world.people[0];
 
 function option(select,value,label){
@@ -65,13 +79,14 @@ function residentActivity(p){
     pin?.movingTo||pin?.place!==p.place?`去${place}的路上`:p.place==='homes'&&label.startsWith('在家')?label:`${place} · ${label}`;
 }
 function personalThought(p){
-  return TownRelations.thought(world,p)??TownWishes.thought(world,p,Town.activity(world,p));
+  return TownRelations.thought(world,p)??TownSkeptic.thought(world,p)??TownRipples.thought(world,p)??TownWishes.thought(world,p,Town.activity(world,p));
 }
 function paint(){
   const p=selected(),activity=residentActivity(p);
   const bio=`${activity} · 心情 ${p.mood} · ${p.money} 元${p.questioned?' · 察觉异常':''}`;
   if($('bio').textContent!==bio)$('bio').textContent=bio;
   TownMap.draw(ctx,world,p.id,canvas.clientWidth,mapPins,choosingPlace,interiors,animationTime,motion.matches?.62:tickProgress);
+  drawPulses();
 }
 function createCrowd(){
   return TownMovement.create(world,Math.random,(a,b)=>{
@@ -123,7 +138,7 @@ canvas.addEventListener('click',event=>{
   }
 });
 function when(tick){return `第 ${Math.floor(tick/48)+1} 天 ${String(Math.floor(tick%48/2)).padStart(2,'0')}:${tick%2?'30':'00'}`;}
-const modalOpen=()=>['journal','stories','moment','rail','wish'].some(id=>$(id).open);
+const modalOpen=()=>['journal','stories','moment','rail','wish','paper','fate','thread'].some(id=>$(id).open);
 function storyNode(tag,value,css){
   const node=document.createElement(tag);
   node.textContent=value;
@@ -420,12 +435,15 @@ function renderFollow(){
     text.textContent='选一位居民，拨动一次命运，再看看事情会怎么发展。';
     return;
   }
-  const outcome=world.events.findLast(e=>e.parent===root.id&&e.type!=='suspicion');
+  const outcome=world.events.findLast(e=>e.parent===root.id&&!['suspicion','note'].includes(e.type));
   const result=world.events.findLast(e=>e.type==='moment-favor'&&e.parent===outcome?.id)??outcome;
-  const pending=world.pending.some(e=>e.parent===root.id)||TownMoments.active(world)?.root===root.id||TownWishes.activeRoot(world,root.id)||TownRelations.activeRoot(world,root.id);
+  const pending=TownRipples.pendingFor(world,root.id)||world.pending.some(e=>e.parent===root.id)||TownMoments.active(world)?.root===root.id||TownWishes.activeRoot(world,root.id)||TownRelations.activeRoot(world,root.id);
   const badge=document.createElement('strong');
   badge.textContent=pending?'追踪中':result?'后续':'已发生';
   text.append(badge,document.createTextNode(result?.text??root.text));
+  const rootId=TownRipples.rootOf(world,root.id)?.id??root.id,sum=TownRipples.summary(world,rootId);
+  if(sum.count)text.append(storyNode('em',` · 已牵动 ${sum.people.length} 人`));
+  text.append(storyButton('因果链 ›',()=>openThread(rootId),'thread-entry'));
 }
 function render(){
   const p=selected(),night=world.tick%48<12||world.tick%48>=40;
@@ -458,6 +476,7 @@ function render(){
   if($('stories').open)renderStories();
   if($('journal').open)renderJournal();
   renderFollow();
+  renderExtras();
   paint();
 }
 function advance(){
@@ -537,7 +556,7 @@ function openResidentProfile(){
 }
 $('openWish').onclick=openResidentProfile;
 $('closeWish').onclick=()=>$('wish').close();
-for(const id of ['journal','stories','moment','rail','wish'])$(id).addEventListener('close',()=>{scheduleNext();refreshMotion();});
+for(const id of ['journal','stories','moment','rail','wish','paper','fate','thread'])$(id).addEventListener('close',()=>{scheduleNext();refreshMotion();});
 $('sound').onclick=async()=>{
   if(audio){await audio.close();audio=null;}else{audio=new AudioContext();await audio.resume();beep();}
   const label=audio?'关闭音效':'开启音效';
@@ -555,17 +574,269 @@ $('importButton').onclick=()=>$('import').click();
 $('import').onchange=async event=>{
   try{
     const file=event.target.files[0];if(!file)return;
-    const data=JSON.parse(await file.text());
+    const parsed=JSON.parse(await file.text());
+    const data=Town.migrate(parsed,parsed?.saveVersion??1);
     if(!Town.valid(data))throw new Error();
     Town.upgrade(data);
     const newWatch=Number.isInteger(data.watchedEvent)?data.watchedEvent:null;
     if(!SaveManager.save(localStorage,KEY,{...data,savedAt:Date.now()},Town.valid))throw new Error();
-    world=data;watched=newWatch;seenStory=world.sequence;choosingPlace=false;
+    world=data;watched=newWatch;seenStory=world.sequence;pulseSeq=world.sequence;choosingPlace=false;
     resetCrowd();populateResidents();
     render();$('notice').textContent='已恢复存档。';
   }catch{$('notice').textContent='存档无效或无法写入。';}
   finally{event.target.value='';}
 };
+// ---- Butterfly effects, daily paper, fate book ----
+function chime(notes,type='sine',gap=.09,volume=.045){
+  if(!audio)return;
+  notes.forEach((frequency,i)=>{
+    const osc=audio.createOscillator(),gain=audio.createGain(),at=audio.currentTime+i*gap;
+    osc.type=type;osc.frequency.value=frequency;
+    gain.gain.setValueAtTime(.0001,at);gain.gain.exponentialRampToValueAtTime(volume,at+.02);
+    gain.gain.exponentialRampToValueAtTime(.0001,at+.5);
+    osc.connect(gain).connect(audio.destination);osc.start(at);osc.stop(at+.55);
+  });
+}
+const PULSE_TYPES=new Set(['bond','couple','crush','meteor','stargaze','lecture','proof','kind-turn','umbrella','snowman','rumor']);
+function collectPulses(){
+  if(world.sequence<=pulseSeq)return;
+  const fresh=world.events.filter(e=>e.id>pulseSeq);pulseSeq=world.sequence;
+  const root=watched!=null?TownRipples.rootOf(world,watched)?.id:null;
+  let added=false;
+  for(const e of fresh){
+    if(!e.ids?.length)continue;
+    const mine=e.parent!=null&&root!=null&&TownRipples.rootOf(world,e.id)?.id===root;
+    if(!mine&&!PULSE_TYPES.has(e.type))continue;
+    pulses.push({ids:e.ids.slice(0,6),born:performance.now(),tone:TownRipples.toneOf(e)});added=true;
+  }
+  pulses=pulses.slice(-8);
+  if(added){chime([392,523],'sine',.12,.03);manualUntil=Math.max(manualUntil,performance.now()+2700);refreshMotion();}
+}
+function drawPulses(){
+  const now=performance.now();
+  pulses=pulses.filter(pulse=>now-pulse.born<2600);
+  if(!pulses.length)return;
+  ctx.save();
+  for(const pulse of pulses){
+    const k=(now-pulse.born)/2600;
+    for(const id of pulse.ids){
+      const pin=mapPins.find(walker=>walker.resident.id===id);
+      if(!pin||(pin.indoors&&!interiors))continue;
+      for(const lag of [0,.28]){
+        const t=k-lag;if(t<0||t>1)continue;
+        ctx.beginPath();ctx.arc(pin.x,pin.y-4,7+t*30,0,Math.PI*2);
+        ctx.strokeStyle=pulse.tone<0?`rgba(176,74,62,${(1-t)*.85})`:`rgba(246,196,84,${(1-t)*.95})`;
+        ctx.lineWidth=3*(1-t)+.6;ctx.stroke();
+      }
+    }
+  }
+  ctx.restore();
+}
+function renderExtras(){
+  const aw=Math.round(world.skeptic?.awareness??0);
+  $('awarenessBar').style.width=`${aw}%`;$('awarenessText').textContent=`${aw}%`;
+  $('awareness').dataset.level=aw>=60?'high':aw>=30?'mid':'low';
+  renderQuests();
+  collectPulses();
+  const latest=world.papers?.at(-1);
+  $('paperDot').hidden=!latest||latest.read;
+  if(latest&&!latest.read&&autoPaper&&!modalOpen()&&!document.hidden)openPaper();
+  if($('toast').hidden)drainFresh();
+  if($('fate').open)renderFate();
+  if($('thread').open)renderThread();
+}
+function renderQuests(){
+  const g=TownGoals.state(world),button=$('quests');
+  const quests=g.quests.map(q=>`${q.done?'✓':'○'} ${q.text}`);
+  button.replaceChildren(storyNode('strong','命运委托'),storyNode('span',quests.join('　')||'今天没有委托'),
+    storyNode('small',`${TownGoals.rank(world).title} ›`));
+}
+function showToast(title,text,action){
+  const toast=$('toast');
+  toast.replaceChildren(storyNode('strong',title),storyNode('span',text));
+  toast.onclick=action??null;toast.hidden=false;
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>{toast.hidden=true;drainFresh();},3800);
+}
+function drainFresh(){
+  const g=world.goals;
+  if(!g?.fresh.length)return;
+  const item=g.fresh.shift();
+  if(item.type==='achievement'){
+    const a=TownGoals.ACHIEVEMENTS.find(entry=>entry.key===item.key);
+    if(a){showToast(a.rare?`★ 稀有成就 · ${a.name}`:`成就解锁 · ${a.name}`,a.text,()=>openFate('badges'));chime([523,659,784,1046],'triangle',.08,.05);$('fateDot').hidden=false;}
+  }else{
+    showToast('委托完成',`${item.text} · 明天多 1 次干预`,()=>openFate('quests'));chime([659,880],'triangle');
+  }
+  save();
+}
+function openPaper(index){
+  const papers=world.papers??[];
+  paperIndex=index??papers.length-1;
+  if(papers[paperIndex])papers[paperIndex].read=true;
+  renderPaper();$('paper').showModal();
+  if(audio)chime([220,330],'square',.05,.012);
+  save();scheduleNext();refreshMotion();
+}
+function renderPaper(){
+  const panel=$('paperPanel'),papers=world.papers??[],p=papers[paperIndex];
+  $('paperDot').hidden=papers.every(entry=>entry.read);
+  if(!p){
+    panel.replaceChildren(storyNode('p','第一份日报会在今天午夜印好。拨动几次命运，明天看看报上写了什么。','story-meta'));
+    return;
+  }
+  const mast=storyNode('header','','paper-mast');
+  mast.append(storyNode('h3','微光镇日报'),storyNode('p',`第 ${p.day+1} 天 · ${p.weekday} · ${p.weather}${p.power?' · 夜里停过电':''}`));
+  const nodes=[mast];
+  if(p.special)nodes.push(storyNode('p',p.special,'paper-special'));
+  const lead=storyNode('article','','paper-lead');
+  lead.append(storyNode('h4',p.headline.title),storyNode('p',p.headline.text));
+  if(p.headline.chain&&world.events.some(e=>e.id===p.headline.chain))
+    lead.append(storyButton('看这条因果链 ›',()=>{$('paper').close();openThread(p.headline.chain);},'paper-link'));
+  nodes.push(lead);
+  const grid=storyNode('div','','paper-grid');
+  for(const section of p.sections){
+    const box=storyNode('section','','paper-col');
+    box.append(storyNode('h5',section.label));
+    for(const line of section.text.split('\n'))box.append(storyNode('p',line));
+    grid.append(box);
+  }
+  nodes.push(grid,storyNode('p',`今日天气：${p.today}`,'story-meta'));
+  const actions=storyNode('div','','story-actions paper-actions');
+  const prev=storyButton('‹ 前一天',()=>{paperIndex--;renderPaper();});prev.disabled=paperIndex<=0;
+  const next=storyButton('后一天 ›',()=>{paperIndex++;renderPaper();});next.disabled=paperIndex>=papers.length-1;
+  const card=storyButton('保存为纪念卡',()=>TownCards.download(TownCards.paper(p),`微光镇日报-第${p.day+1}天.png`),'story-primary');
+  const label=document.createElement('label'),box=document.createElement('input');
+  box.type='checkbox';box.checked=autoPaper;
+  box.onchange=()=>{autoPaper=box.checked;localStorage.setItem(KEY+':paper',autoPaper?'on':'off');};
+  label.className='paper-auto';label.append(box,document.createTextNode(' 每天结束时自动弹出'));
+  actions.append(prev,next,card,label);
+  nodes.push(actions);
+  panel.replaceChildren(...nodes);
+}
+function openFate(tab){
+  if(tab)fateTab=tab;
+  $('fateDot').hidden=true;$('toast').hidden=true;
+  renderFate();$('fate').showModal();scheduleNext();refreshMotion();
+}
+for(const button of document.querySelectorAll('.fate-tabs button'))button.onclick=()=>{fateTab=button.dataset.tab;renderFate();button.focus();};
+function renderFate(){
+  for(const button of document.querySelectorAll('.fate-tabs button'))button.setAttribute('aria-selected',String(button.dataset.tab===fateTab));
+  const panel=$('fatePanel'),g=TownGoals.state(world),nodes=[];
+  if(fateTab==='quests'){
+    const {title,completed,next}=TownGoals.rank(world);
+    nodes.push(storyNode('p',`${title} · 已完成 ${completed} 件委托${next?` · 再完成 ${next.need-completed} 件成为「${next.name}」`:''}`,'fate-rank'));
+    for(const quest of g.quests){
+      const card=storyNode('div','',`quest-card${quest.done?' done':''}`);
+      card.append(storyNode('strong',`${quest.done?'✓':'○'} ${quest.text}`),storyNode('small',quest.hint),
+        storyNode('span',quest.done?'已完成 · 明天多 1 次干预':quest.kind==='quiet'?'今晚结算':'进行中','quest-status'));
+      nodes.push(card);
+    }
+    nodes.push(storyNode('p','每完成一件委托，第二天多 1 次干预（最多多 2 次）。委托只看小镇里真实发生的事。','story-meta'));
+    if(g.last&&(g.last.done.length||g.last.missed.length))
+      nodes.push(storyNode('p',`昨天：完成 ${g.last.done.length} 件${g.last.missed.length?`，没完成「${g.last.missed.join('」「')}」`:''}。`,'story-meta'));
+  }else if(fateTab==='badges'){
+    const got=TownGoals.ACHIEVEMENTS.filter(a=>g.achievements[a.key]!=null).length;
+    nodes.push(storyNode('p',`已收集 ${got} / ${TownGoals.ACHIEVEMENTS.length} 张纪念卡。带 ★ 的是稀有卡，只在小概率的事里出现。`,'fate-rank'));
+    const grid=storyNode('div','','badge-grid');
+    for(const a of TownGoals.ACHIEVEMENTS){
+      const unlocked=g.achievements[a.key]!=null;
+      const item=storyNode('div','',`badge${unlocked?'':' locked'}${a.rare?' rare':''}`);
+      const icon=document.createElement('canvas');icon.width=48;icon.height=48;icon.setAttribute('aria-hidden','true');
+      TownCards.pixelIcon(icon.getContext('2d'),4,4,40,unlocked?a.color:'#b9b19c',unlocked?a.icon:'?');
+      item.append(icon,storyNode('strong',unlocked||!a.rare?`${a.rare?'★ ':''}${a.name}`:'★ ？？？'),
+        storyNode('small',unlocked?`${a.text} · 第 ${g.achievements[a.key]+1} 天`:a.rare?'稀有成就，还没遇见过。':a.text));
+      if(unlocked)item.append(storyButton('纪念卡',()=>TownCards.download(TownCards.badge(a,g.achievements[a.key],`${TownGoals.rank(world).title} 在微光镇收集。`),`纪念卡-${a.name}.png`)));
+      grid.append(item);
+    }
+    nodes.push(grid);
+  }else if(fateTab==='newton'){
+    const s=world.skeptic??{stage:0,notes:[],awareness:0,believers:[],laughers:[]};
+    nodes.push(storyNode('p',`Newton · ${TownSkeptic.STAGES[s.stage]} · 小镇察觉度 ${Math.round(s.awareness)}%`,'fate-rank'));
+    nodes.push(storyNode('p','Newton 只会记下他能看见、或从熟人那里听说的事。干预越多、越在人前，他越容易发现。察觉度每天回落一些。','story-meta'));
+    if(s.experiment&&!s.experiment.result)nodes.push(storyNode('p',`他打算 ${when(s.experiment.at)} 在广场做实验。那时候如果有人“恰好”捡到硬币……`,'story-result'));
+    if(s.talk&&!s.talk.done)nodes.push(storyNode('p',`他会在 ${when(s.talk.at)} 去广场演讲。`,'story-result'));
+    const names=ids=>ids.map(id=>world.people.find(p=>p.id===id)?.name).filter(Boolean).join('、');
+    if(s.believers.length)nodes.push(storyNode('p',`相信他的人：${names(s.believers)}`,'story-meta'));
+    if(s.laughers.length)nodes.push(storyNode('p',`笑他的人：${names(s.laughers)}`,'story-meta'));
+    const list=storyNode('ol','','newton-notes');
+    for(const note of s.notes.slice(-12).reverse())list.append(storyNode('li',`第 ${note.day+1} 天 · ${note.text}`));
+    if(!s.notes.length)list.append(storyNode('li','笔记本还是空的。Newton 是镇上最爱较真的人，别在他面前频繁出手。'));
+    nodes.push(list);
+  }else{
+    nodes.push(storyNode('p','每天第一次存档时会留一份快照。回到那天以后，世界会照原样重演，除非你拨动不同的骰子。','story-meta'));
+    const snaps=SaveManager.snapshots(localStorage,KEY).sort((a,b)=>b.tick-a.tick);
+    const list=storyNode('div','','rewind-list');
+    for(const snap of snaps){
+      const row=storyNode('div','','rewind-row');
+      row.append(storyNode('span',`${when(snap.tick)}${snap.day===Math.floor(world.tick/48)?' · 今天':''}`),
+        storyButton('回到这里',()=>rewind(snap)));
+      list.append(row);
+    }
+    if(!snaps.length)list.append(storyNode('p','还没有快照。'));
+    nodes.push(list);
+  }
+  panel.replaceChildren(...nodes);
+}
+function rewind(snap){
+  if(!confirm(`回到${when(snap.tick)}？在那之后发生的事都会被改写。`))return;
+  const data=SaveManager.restore(localStorage,KEY,snap.index,Town.valid,Town.migrate);
+  if(!data){showToast('时光回溯','这份快照读不出来了。');return;}
+  Town.upgrade(data);
+  world=data;watched=Number.isInteger(data.watchedEvent)?data.watchedEvent:null;
+  seenStory=world.sequence;pulseSeq=world.sequence;pulses=[];choosingPlace=false;
+  resetCrowd();populateResidents();save();$('fate').close();render();
+  showToast('时光回溯',`回到了${when(world.tick)}。世界会照原样重演，除非你换一种拨法。`);
+}
+function openThread(rootId){
+  const current=watched!=null?TownRipples.rootOf(world,watched)?.id:null;
+  threadRoot=rootId??current??world.events.findLast(e=>e.parent==null&&TownRipples.PLAYER.has(e.type))?.id??null;
+  renderThread();$('thread').showModal();scheduleNext();refreshMotion();
+}
+function threadNode(node){
+  const tone=Math.sign(TownRipples.toneOf(node.event));
+  const item=storyNode('li','',`tone-${tone<0?'bad':tone>0?'good':'flat'}`);
+  const row=storyNode('div','','thread-row');
+  row.append(storyNode('time',when(node.event.tick)),storyNode('span',node.event.text));
+  item.append(row);
+  if(node.children.length){
+    const list=document.createElement('ul');
+    for(const child of node.children)list.append(threadNode(child));
+    item.append(list);
+  }
+  return item;
+}
+function renderThread(){
+  const panel=$('threadPanel'),nodes=[];
+  const roots=world.events.filter(e=>e.parent==null&&TownRipples.PLAYER.has(e.type)).slice(-8).reverse();
+  if(roots.length){
+    const picker=storyNode('div','','thread-roots');
+    for(const root of roots){
+      const sum=TownRipples.summary(world,root.id);
+      const button=storyButton(`${root.text.length>16?root.text.slice(0,16)+'…':root.text} · ${sum.people.length} 人`,()=>{threadRoot=root.id;renderThread();});
+      button.setAttribute('aria-pressed',String(root.id===threadRoot));
+      picker.append(button);
+    }
+    nodes.push(picker);
+  }
+  const tree=threadRoot!=null?TownRipples.tree(world,threadRoot):null;
+  if(!tree){
+    nodes.push(storyNode('p','还没有可追踪的命运之线。选一位居民，拨动一次命运吧。','story-meta'));
+    panel.replaceChildren(...nodes);return;
+  }
+  const sum=TownRipples.summary(world,threadRoot);
+  nodes.push(storyNode('p',`牵动 ${sum.people.length} 位居民 · 后续 ${sum.count} 件 · 最远传了 ${sum.depth} 层${sum.positive||sum.negative?` · 好事 ${sum.positive} / 坏事 ${sum.negative}`:''}`,'thread-summary'));
+  const list=storyNode('ul','','thread-tree');list.append(threadNode(tree));nodes.push(list);
+  const brewing=TownRipples.pendingFor(world,threadRoot)||world.pending.some(e=>e.parent!=null&&TownRipples.rootOf(world,e.parent)?.id===threadRoot);
+  if(brewing)nodes.push(storyNode('p','还有后续在酝酿。居民们得先在某个地方碰上面，事情才会往下走。','story-meta'));
+  panel.replaceChildren(...nodes);
+}
+$('openPaper').onclick=()=>openPaper();
+$('closePaper').onclick=()=>$('paper').close();
+$('openFate').onclick=()=>openFate();
+$('closeFate').onclick=()=>$('fate').close();
+$('quests').onclick=()=>openFate('quests');
+$('closeThread').onclick=()=>$('thread').close();
 window.addEventListener('resize',paint);
 document.addEventListener('visibilitychange',()=>{scheduleNext();refreshMotion();});
 motion.addEventListener('change',()=>{if(motion.matches){resetCrowd();paint();}refreshMotion();});

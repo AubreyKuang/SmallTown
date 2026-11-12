@@ -77,7 +77,7 @@ const Town = (() => {
     const school=TownSchool.routine(w,p);
     if(school)return TownWishes.destination(w,p,school);
     if(w.power&&(p.id%5===0||p.id%7===0)&&h>=19+(p.id%3)*.5&&h<21+(p.id%2)*.5)return {place:'square',activity:'stars'};
-    return TownRelations.destination(w,p,TownWishes.destination(w,p,TownRoutines.daily(w,p)));
+    return TownSkeptic.destination(w,p,TownRipples.destination(w,p,TownRelations.destination(w,p,TownWishes.destination(w,p,TownRoutines.daily(w,p)))));
   }
   function activity(w,p){
     if(Object.hasOwn(TownRoutines.labels,p.activity))return p.activity;
@@ -182,9 +182,10 @@ const Town = (() => {
     w.tick++;
     const hour=w.tick%48;
     if(hour===0){
-      w.tokens=3;
       w.weather=['晴朗','细雨','小雪'][Math.floor(random(w)*3)];
       w.power=false;
+      w.tokens=3+TownGoals.rollover(w);
+      TownPaper.publish(w);
       log(w,`新的一天。天气：${w.weather}。`);
     }
     if(hour===38&&random(w)<.3){
@@ -204,6 +205,10 @@ const Town = (() => {
     TownMoments.step(w,(...args)=>log(w,...args),(...args)=>memory(w,...args));
     TownWishes.step(w,(...args)=>log(w,...args),(...args)=>memory(w,...args));
     TownRelations.step(w,(...args)=>log(w,...args),(...args)=>memory(w,...args));
+    TownSkeptic.step(w,(...args)=>log(w,...args),(...args)=>memory(w,...args));
+    TownRipples.step(w,(...args)=>log(w,...args));
+    TownGoals.check(w);
+    TownPaper.track(w);
     const railNotice=TownRail.notice(w.tick);
     if(railNotice)log(w,railNotice,null,'rail');
     return w;
@@ -213,7 +218,18 @@ const Town = (() => {
     &&new Set(w.people.map(p=>p.id)).size===w.people.length
     &&w.people.every(p=>Object.hasOwn(places,p.job)&&Object.hasOwn(places,p.habit)&&p.trust&&typeof p.trust==='object')
     &&Array.isArray(w.pending)&&w.pending.every(p=>['late','help','meeting','loan'].includes(p.kind)&&w.people.some(person=>person.id===p.person))
-    &&Number.isInteger(w.sequence)&&Number.isInteger(w.tokens)&&w.tokens>=0&&w.tokens<=3&&TownStories.valid(w)&&TownMoments.valid(w)&&TownWishes.valid(w)&&TownRelations.valid(w);
+    &&Number.isInteger(w.sequence)&&Number.isInteger(w.tokens)&&w.tokens>=0&&w.tokens<=5&&TownStories.valid(w)&&TownMoments.valid(w)&&TownWishes.valid(w)&&TownRelations.valid(w)
+    &&TownRipples.valid(w)&&TownSkeptic.valid(w)&&TownGoals.valid(w)&&TownPaper.valid(w);
+  // Older saves carry no ripple, skeptic, goal or paper state. Those modules start fresh from the current tick.
+  function migrate(data,from){
+    if(!data||typeof data!=='object')return data;
+    if(from<2){
+      if(Array.isArray(data.people))for(const p of data.people){p.trust??={};p.suspicion??=0;}
+      if(Number.isInteger(data.tokens))data.tokens=Math.min(5,Math.max(0,data.tokens));
+    }
+    if(Array.isArray(data.people)&&data.people.length===names.length&&Array.isArray(data.events))upgrade(data);
+    return data;
+  }
   const startStory=(w,plan,helper,school)=>TownStories.start(w,plan,helper,(...args)=>log(w,...args),school);
   const inviteStory=w=>TownStories.invite(w,(...args)=>log(w,...args));
   const chooseMoment=(w,root,mode)=>TownMoments.choose(w,root,mode,(...args)=>log(w,...args),(...args)=>memory(w,...args));
@@ -221,5 +237,5 @@ const Town = (() => {
   const nudgeDate=(w,id)=>TownRelations.nudge(w,id,()=>random(w),(...args)=>log(w,...args));
   const forecastPlan=(w,p,tick)=>schedule({...w,tick,power:tick-w.tick<4&&w.power},p);
   const forecast=(w,p,tick)=>forecastPlan(w,p,tick).place;
-  return {create,step,influence,places,valid,startStory,inviteStory,forecast,forecastPlan,activity,canAct,upgrade,chooseMoment,roadTalk,rollWish,nudgeDate};
+  return {create,step,influence,places,valid,migrate,startStory,inviteStory,forecast,forecastPlan,activity,canAct,upgrade,chooseMoment,roadTalk,rollWish,nudgeDate};
 })();

@@ -14,6 +14,8 @@
   <div class="clock"><span id="skyIcon" aria-hidden="true">☀</span><p id="clock" aria-live="off"></p></div>
   <div class="top-actions">
     <button id="sound" aria-pressed="false" aria-label="开启音效" title="开启音效">♪</button>
+    <button id="openPaper">日报 <span id="paperDot" class="dot" hidden></span></button>
+    <button id="openFate">命运簿 <span id="fateDot" class="dot" hidden></span></button>
     <button id="openJournal">小镇手记 <span id="unread" hidden></span></button>
   </div>
 </header>
@@ -26,6 +28,7 @@
       </div>
       <button id="openSchool" class="school-entry" aria-label="查看学校日常">学校 ›</button>
       <button id="openRail" class="rail-entry" aria-label="查看列车时刻">列车 ›</button>
+      <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
     </div>
   </div>
   <aside class="controls-panel" aria-label="小镇操作">
@@ -44,7 +47,7 @@
         <div><label class="sr-only" for="person">观察居民</label><select id="person"></select><p id="bio"></p></div>
       </div>
       <div class="fate">
-        <div class="fate-head"><h2>拨动命运</h2><p id="tokens"></p></div>
+        <div class="fate-head"><h2>拨动命运</h2><p id="tokens"></p><p id="awareness" class="awareness" title="小镇察觉度：干预越多、越被人看见，Newton 越容易记下来。每天回落一些。"><span>察觉</span><i><b id="awarenessBar"></b></i><span id="awarenessText"></span></p></div>
         <div class="cards" aria-label="选择一次干预">
           <button data-kind="coin"><span aria-hidden="true">◉</span>捡到硬币</button>
           <button data-kind="lottery"><span aria-hidden="true">券</span>中彩票</button>
@@ -56,6 +59,7 @@
         <div id="destinations" class="destinations" hidden></div>
       </div>
     </div>
+    <button id="quests" class="quests" aria-label="查看命运委托"></button>
     <div id="follow" class="follow" aria-live="polite"></div>
   </aside>
 </section>
@@ -75,6 +79,21 @@
   <div class="journal-head"><h2 id="storiesTitle">镇务告示</h2><button id="closeStories" aria-label="关闭镇务">×</button></div>
   <div id="storyPanel" class="story-panel"></div>
 </dialog>
+<dialog id="paper" class="paper-dialog" aria-labelledby="paperTitle">
+  <div class="journal-head"><h2 id="paperTitle">微光镇日报</h2><button id="closePaper" aria-label="关闭日报">×</button></div>
+  <div id="paperPanel" class="paper"></div>
+</dialog>
+<dialog id="fate" aria-labelledby="fateTitle">
+  <div class="journal-head"><h2 id="fateTitle">命运簿</h2><button id="closeFate" aria-label="关闭命运簿">×</button></div>
+  <div class="fate-tabs" role="tablist" aria-label="命运簿分类">
+    <button role="tab" data-tab="quests">委托</button><button role="tab" data-tab="badges">成就</button><button role="tab" data-tab="newton">Newton 的笔记</button><button role="tab" data-tab="rewind">时光回溯</button>
+  </div>
+  <div id="fatePanel" class="story-panel"></div>
+</dialog>
+<dialog id="thread" aria-labelledby="threadTitle">
+  <div class="journal-head"><h2 id="threadTitle">命运之线</h2><button id="closeThread" aria-label="关闭因果链">×</button></div>
+  <div id="threadPanel" class="story-panel"></div>
+</dialog>
 <dialog id="journal" aria-labelledby="journalTitle">
   <div class="journal-head"><h2 id="journalTitle">小镇手记</h2><button id="closeJournal" aria-label="关闭手记">×</button></div>
   <div class="journal-body">
@@ -84,5 +103,5 @@
   <div class="save-controls"><button id="export">导出存档</button><button id="importButton">导入存档</button><input id="import" type="file" accept="application/json,.json" hidden><label><input id="offline" type="checkbox"> 离线推进</label></div>
 </dialog>
 </main>
-<script src="npc-memory.js"></script><script src="save-manager.js"></script><script src="town-school.js"></script><script src="town-stories.js?v=5"></script><script src="town-routines.js?v=11"></script><script src="town-moments.js"></script><script src="town-rail.js"></script><script src="town-wishes.js"></script><script src="town-relations.js"></script><script src="world.js?v=11"></script><script src="town-homes.js?v=5"></script><script src="town-interiors.js"></script><script src="town-art.js?v=8"></script><script src="town-map.js?v=10"></script><script src="town-movement.js?v=8"></script><script src="ui.js?v=13"></script>
+<script src="npc-memory.js"></script><script src="save-manager.js?v=2"></script><script src="town-school.js"></script><script src="town-stories.js?v=5"></script><script src="town-routines.js?v=12"></script><script src="town-moments.js"></script><script src="town-rail.js"></script><script src="town-wishes.js"></script><script src="town-relations.js"></script><script src="town-ripples.js?v=1"></script><script src="town-skeptic.js?v=1"></script><script src="town-goals.js?v=1"></script><script src="town-paper.js?v=1"></script><script src="world.js?v=12"></script><script src="town-homes.js?v=5"></script><script src="town-interiors.js"></script><script src="town-art.js?v=8"></script><script src="town-map.js?v=10"></script><script src="town-movement.js?v=8"></script><script src="town-cards.js?v=1"></script><script src="ui.js?v=13"></script>
 </body></html>

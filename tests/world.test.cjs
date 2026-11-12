@@ -2,8 +2,8 @@ const assert = require('node:assert/strict');
 const {test} = require('node:test');
 const {readFileSync} = require('node:fs');
 const vm = require('node:vm');
-const source=['npc-memory.js','save-manager.js','town-school.js','town-stories.js','town-routines.js','town-moments.js','town-rail.js','town-wishes.js','town-relations.js','world.js','town-homes.js','town-interiors.js','town-map.js','town-movement.js'].map(name=>readFileSync(require('node:path').join(__dirname,'..',name),'utf8')).join('\n');
-const {Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes,TownRelations}=vm.runInNewContext(source+'\n({Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes,TownRelations})');
+const source=['npc-memory.js','save-manager.js','town-school.js','town-stories.js','town-routines.js','town-moments.js','town-rail.js','town-wishes.js','town-relations.js','town-ripples.js','town-skeptic.js','town-goals.js','town-paper.js','world.js','town-homes.js','town-interiors.js','town-map.js','town-movement.js'].map(name=>readFileSync(require('node:path').join(__dirname,'..',name),'utf8')).join('\n');
+const {Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes,TownRelations,TownRipples,TownSkeptic,TownGoals,TownPaper}=vm.runInNewContext(source+'\n({Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes,TownRelations,TownRipples,TownSkeptic,TownGoals,TownPaper})');
 function to(w,t){while(w.tick<t)Town.step(w);}
 function visualRandom(seed){
   return ()=>{
@@ -427,4 +427,88 @@ test('profiles distinguish family, classmates, and friends in a legacy save',()=
   assert.equal(forId(26).find(c=>c.person.id===27).label,'同学');
   assert.equal(forId(3).find(c=>c.person.id===7).label,'朋友');
   assert.ok(w.people.every(p=>TownRelations.connections(w,p).length>0));
+});
+function manualLog(w){
+  return (text,parent,type,ids)=>{const e={id:++w.sequence,tick:w.tick,text,parent,type,ids};w.events.push(e);return e.id;};
+}
+test('fate ripples grow from real events and replay identically from a snapshot',()=>{
+  const w=Town.create(42);to(w,20);
+  assert.ok(Town.influence(w,5,'lottery'));assert.ok(Town.influence(w,2,'lost'));
+  const copy=JSON.parse(JSON.stringify(w));
+  to(w,48*3);to(copy,48*3);
+  assert.equal(JSON.stringify(copy),JSON.stringify(w));
+  const spontaneous=new Set(['umbrella','snowman','meteor-start','kind-turn']);
+  const ripples=w.events.filter(e=>['treat','flowers','gossip','rumor','thanks','repay','unpaid','cover','reunion','share','platform','bond','crush','stargaze'].includes(e.type));
+  assert.ok(ripples.length>0);
+  assert.ok(ripples.every(e=>e.parent!=null||spontaneous.has(e.type)));
+  const lottery=w.events.find(e=>e.type==='lottery');
+  assert.ok(TownRipples.summary(w,lottery.id).people.length>=2);
+  assert.ok(Town.valid(w));
+});
+test('gossip only reaches someone who shares a place with the teller and may be misheard',()=>{
+  const w=Town.create(8);to(w,20);
+  const [teller,subject,near,far]=[w.people[0],w.people[1],w.people[3],w.people[4]];
+  for(const p of w.people){p.place='homes';p.activity='rest';}
+  teller.place='cafe';near.place='cafe';teller.activity=near.activity='coffee';
+  TownRipples.step(w,manualLog(w));
+  w.ripples.plans.push({kind:'gossip',ids:[teller.id,subject.id],parent:null,at:w.tick,until:w.tick+5,tone:-1,claim:`${subject.name} 欠钱不还。`,hops:0,told:[]});
+  const before=far.trust[subject.id]||0;
+  TownRipples.step(w,manualLog(w));
+  const told=w.events.findLast(e=>['gossip','rumor'].includes(e.type));
+  assert.ok(told);assert.equal(JSON.stringify(told.ids),JSON.stringify([teller.id,near.id,subject.id]));
+  assert.ok((near.trust[subject.id]||0)<0);
+  assert.equal(far.trust[subject.id]||0,before);
+  assert.ok(NPCMemory.recall(w,near.id).some(m=>m.channel==='hearsay'&&m.confidence<1));
+});
+test('Newton only writes down coincidences he could plausibly notice',()=>{
+  const w=Town.create(8);to(w,20);
+  const newton=w.people.find(p=>p.id===TownSkeptic.NEWTON),stranger=w.people.find(p=>p.id===11);
+  TownSkeptic.step(w,manualLog(w),()=>{});
+  newton.place='bakery';newton.activity='work';stranger.place='forest';stranger.activity='walk';
+  newton.trust[stranger.id]=0;stranger.trust[newton.id]=0;
+  manualLog(w)(`${stranger.name} 捡到两枚硬币。`,null,'coin',[stranger.id]);
+  TownSkeptic.step(w,manualLog(w),()=>{});
+  assert.equal(w.skeptic.notes.length,0);
+  stranger.place='bakery';
+  manualLog(w)(`${stranger.name} 捡到两枚硬币。`,null,'coin',[stranger.id]);
+  TownSkeptic.step(w,manualLog(w),()=>{});
+  assert.equal(w.skeptic.notes.length,1);
+  assert.ok(w.skeptic.awareness>0);
+  assert.equal(w.events.at(-1).type,'note');
+});
+test('midnight prints the daily paper and finished requests add tomorrow interventions',()=>{
+  const w=Town.create(42);to(w,20);
+  TownGoals.state(w);
+  w.goals.quests=[{kind:'mood',a:1,text:'让 Alice 的心情升到 85',hint:'',done:false}];
+  w.people[0].mood=95;
+  Town.influence(w,5,'coin');
+  to(w,48);
+  assert.equal(w.goals.completed,1);
+  assert.equal(w.tokens,4);
+  assert.equal(w.papers.length,1);
+  const paper=w.papers[0];
+  assert.equal(paper.day,0);assert.equal(paper.weekday,'星期一');
+  assert.ok(paper.headline.title&&paper.headline.text);
+  assert.ok(paper.sections.some(s=>s.label==='蝴蝶效应'));
+  assert.ok(paper.sections.some(s=>s.label==='命运委托'&&s.text.includes('1 / 1')));
+  assert.ok(Town.valid(w));
+});
+test('save manager migrates version 1 saves, rejects future versions and rewinds to snapshots',()=>{
+  const map=new Map(),storage={getItem:key=>map.get(key)??null,setItem:(key,value)=>map.set(key,value)};
+  const legacy=Town.create(5);to(legacy,30);
+  for(const key of ['ripples','skeptic','goals','papers','paperDay'])delete legacy[key];
+  legacy.saveVersion=1;
+  map.set('town',JSON.stringify(legacy));
+  const loaded=SaveManager.load(storage,'town',Town.valid,Town.migrate);
+  assert.equal(loaded.tick,30);
+  map.set('town',JSON.stringify({...legacy,saveVersion:99}));
+  assert.equal(SaveManager.load(storage,'town',Town.valid,Town.migrate),null);
+  const morning=Town.create(6);to(morning,48);
+  assert.ok(SaveManager.snapshot(storage,'town',morning,Town.valid,{label:'day-1',day:1,tick:morning.tick}));
+  to(morning,96);
+  assert.ok(SaveManager.snapshot(storage,'town',morning,Town.valid,{label:'day-2',day:2,tick:morning.tick}));
+  assert.ok(SaveManager.snapshot(storage,'town',morning,Town.valid,{label:'day-2',day:2,tick:morning.tick}));
+  const list=SaveManager.snapshots(storage,'town');
+  assert.equal(JSON.stringify(list.map(s=>s.day)),'[1,2]');
+  assert.equal(SaveManager.restore(storage,'town',0,Town.valid,Town.migrate).tick,48);
 });
