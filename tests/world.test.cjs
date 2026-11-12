@@ -2,8 +2,8 @@ const assert = require('node:assert/strict');
 const {test} = require('node:test');
 const {readFileSync} = require('node:fs');
 const vm = require('node:vm');
-const source=['npc-memory.js','save-manager.js','town-stories.js','world.js','town-map.js','town-movement.js'].map(name=>readFileSync(require('node:path').join(__dirname,'..',name),'utf8')).join('\n');
-const {Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories}=vm.runInNewContext(source+'\n({Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories})');
+const source=['npc-memory.js','save-manager.js','town-stories.js','town-routines.js','world.js','town-homes.js','town-map.js','town-movement.js'].map(name=>readFileSync(require('node:path').join(__dirname,'..',name),'utf8')).join('\n');
+const {Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes}=vm.runInNewContext(source+'\n({Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes})');
 function to(w,t){while(w.tick<t)Town.step(w);}
 function visualRandom(seed){
   return ()=>{
@@ -18,27 +18,29 @@ test('redirect only meets residents who were scheduled at the destination',()=>{
   assert.ok(event);assert.equal(w.events.find(e=>e.id===event.parent).type,'visit');
   assert.ok(event.ids.includes(3));
   assert.equal(w.people.find(p=>p.id===event.ids[1]).habit,'cafe');
-  assert.equal(NPCMemory.recall(w,3).length,1);
+  assert.ok(NPCMemory.recall(w,3).some(memory=>memory.interpretation===event.text));
   const empty=Town.create(7);assert.ok(Town.influence(empty,3,'visit','cafe'));to(empty,5);
   assert.equal(empty.events.some(e=>e.type==='meeting'),false);
   const quiet=empty.events.find(e=>e.type==='quiet');
   assert.equal(quiet?.parent,empty.events.find(e=>e.type==='visit').id);
 });
 test('staggered commuters animate along the street after their destination changes',()=>{
-  const w=Town.create(8);to(w,15);
+  const w=Town.create(8);to(w,TownRoutines.shift(w.people[0],0).start-2);
   const crowd=TownMovement.create(w,visualRandom(12));
   const from=crowd.pins().find(pin=>pin.resident.id===1);
   Town.step(w);
   assert.equal(from.place,'homes');
   assert.equal(w.people.find(p=>p.id===1).place,'station');
-  assert.equal(w.people.find(p=>p.id===2).place,'homes');
+  assert.equal(w.people.find(p=>p.id===4).place,'homes');
+  assert.equal(from.indoors,true);
   crowd.advance(.5);
   const mid=crowd.pins().find(pin=>pin.resident.id===1);
   assert.equal(mid.place,'homes');
-  assert.notEqual(mid.x,from.x);
-  for(let i=0;i<80;i++)crowd.advance(.05,false);
+  assert.ok(mid.x!==from.x||mid.y!==from.y);
+  for(let i=0;i<120;i++)crowd.advance(.05,false);
   const target=crowd.pins().find(pin=>pin.resident.id===1);
   assert.equal(target.place,'station');
+  assert.equal(target.indoors,false);
   const points=TownMap.route(from,target);
   assert.ok(points.length>2);
   const path=TownMap.plan(points);
@@ -48,6 +50,7 @@ test('staggered commuters animate along the street after their destination chang
 });
 test('residents roam at different times and have distinct stops without advancing the world',()=>{
   const w=Town.create(8);
+  to(w,34);
   const snapshot=JSON.stringify(w);
   const crowd=TownMovement.create(w,visualRandom(3));
   const before=new Map(crowd.pins().map(pin=>[pin.resident.id,pin]));
@@ -59,6 +62,26 @@ test('residents roam at different times and have distinct stops without advancin
   assert.ok(crowd.pins().some(pin=>pin.x!==before.get(pin.resident.id).x||pin.y!==before.get(pin.resident.id).y));
   assert.equal(JSON.stringify(w),snapshot);
 });
+test('home residents have their own rooms, and sleeping stays stationary',()=>{
+  const w=Town.create(8),crowd=TownMovement.create(w,visualRandom(3));
+  const before=crowd.pins();
+  assert.equal(new Set(before.map(pin=>`${pin.x},${pin.y}`)).size,24);
+  assert.ok(before.every(pin=>pin.indoors&&pin.activity==='sleep'));
+  for(let i=0;i<100;i++)crowd.advance(.05);
+  assert.deepEqual(crowd.pins(),before);
+});
+test('residents independently cook, walk and work at the same time',()=>{
+  const w=Town.create(8);to(w,34);
+  assert.ok(w.people.some(p=>p.place==='homes'&&p.activity==='cook'));
+  assert.ok(w.people.some(p=>p.place==='forest'&&p.activity==='walk'));
+  assert.ok(w.people.some(p=>p.activity==='work'));
+  const before=w.people.map(p=>p.place);
+  Town.step(w);
+  const moves=w.people.filter((p,i)=>p.place!==before[i]).length;
+  assert.ok(moves>0&&moves<12);
+  const dayOff=w.people.filter(p=>TownRoutines.shift(p,w.tick).off);
+  assert.ok(dayOff.length>0&&dayOff.every(p=>p.activity!=='work'));
+});
 test('a blackout draws a few volunteers and keeps other districts active',()=>{
   const w=Town.create(9);to(w,37);w.power=true;
   for(let tick=38;tick<=42;tick++){
@@ -69,7 +92,8 @@ test('a blackout draws a few volunteers and keeps other districts active',()=>{
   }
 });
 test('residents share a location for unprompted conversations and remember their own perspective',()=>{
-  const w=Town.create(8);to(w,25);
+  const w=Town.create(8);
+  while(w.tick<42&&!w.events.some(event=>event.type==='chat'))Town.step(w);
   const chat=w.events.find(event=>event.type==='chat');
   assert.ok(chat);
   const [a,b]=chat.ids.map(id=>w.people.find(p=>p.id===id));

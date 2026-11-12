@@ -22,7 +22,8 @@
     <canvas id="map" width="960" height="620" aria-label="微光镇地图，点击居民查看详情"></canvas>
     <div class="map-top">
       <p class="map-hint" id="mapHint">点击地图上的居民</p>
-      <div class="time-controls" aria-label="时间控制">
+      <div class="time-controls" aria-label="地图与时间控制">
+        <button id="homeView" aria-pressed="true" title="切换住宅剖面">屋内</button>
         <button id="auto" aria-pressed="false" aria-label="继续时间" title="继续时间">▶</button>
         <button id="speed" aria-label="切换速度" title="切换速度">1×</button>
         <button id="step" aria-label="推进半小时" title="推进半小时">▸|</button>
@@ -44,7 +45,7 @@
         <button data-kind="lottery"><span aria-hidden="true">✦</span>中彩票</button>
         <button data-kind="bus"><span aria-hidden="true">↗</span>赶上公交</button>
         <button data-kind="lost"><span aria-hidden="true">◇</span>丢失钥匙</button>
-        <button data-kind="delay" title="07:00 至 09:00 可用"><span aria-hidden="true">◷</span>错过班车</button>
+        <button data-kind="delay" title="适用于尚未出发的班车乘客"><span aria-hidden="true">◷</span>错过班车</button>
         <button id="redirect" aria-expanded="false"><span aria-hidden="true">⌖</span>改道</button>
       </div>
       <div id="destinations" class="destinations" hidden></div>
@@ -65,5 +66,5 @@
   <div class="save-controls"><button id="export">导出存档</button><button id="importButton">导入存档</button><input id="import" type="file" accept="application/json,.json" hidden><label><input id="offline" type="checkbox"> 离线推进</label></div>
 </dialog>
 </main>
-<script src="npc-memory.js"></script><script src="save-manager.js"></script><script src="town-stories.js"></script><script src="world.js?v=3"></script><script src="town-art.js"></script><script src="town-map.js?v=3"></script><script src="town-movement.js"></script><script src="ui.js?v=3"></script>
+<script src="npc-memory.js"></script><script src="save-manager.js"></script><script src="town-stories.js"></script><script src="town-routines.js"></script><script src="world.js?v=4"></script><script src="town-homes.js"></script><script src="town-art.js?v=4"></script><script src="town-map.js?v=4"></script><script src="town-movement.js?v=4"></script><script src="ui.js?v=4"></script>
 </body></html>

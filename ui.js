@@ -7,11 +7,12 @@ let world=SaveManager.load(localStorage,KEY,Town.valid);
 const isNew=!world;
 if(isNew){
   world=Town.create();
-  while(world.tick<15)Town.step(world);
+  while(world.tick<17)Town.step(world);
 }
 let timer=null,audio=null,running=false,fast=false,choosingPlace=false,frame=null;
 let lastFrame=null,manualUntil=0;
 let draftPlan=0,draftHelper=null,shownOffer=-1;
+let interiors=localStorage.getItem(KEY+':interiors')!=='off';
 let crowd=TownMovement.create(world),mapPins=crowd.pins();
 let seenStory=world.sequence;
 let watched=Number.isInteger(world.watchedEvent)?world.watchedEvent:null;
@@ -53,11 +54,12 @@ function beep(){
 function paint(){
   const p=selected();
   const pin=mapPins.find(walker=>walker.resident.id===p.id);
-  const place=Town.places[p.place].name;
-  const activity=pin?.place===p.place?place:`去${place}的路上`;
+  const place=p.place==='homes'?'家':Town.places[p.place].name;
+  const label=TownRoutines.labels[Town.activity(world,p)];
+  const activity=pin?.place!==p.place?`去${place}的路上`:p.place==='homes'&&label.startsWith('在家')?label:`${place} · ${label}`;
   const bio=`${activity} · 心情 ${p.mood} · ${p.money} 元${p.questioned?' · 察觉异常':''}`;
   if($('bio').textContent!==bio)$('bio').textContent=bio;
-  TownMap.draw(ctx,world,p.id,canvas.clientWidth,mapPins,choosingPlace);
+  TownMap.draw(ctx,world,p.id,canvas.clientWidth,mapPins,choosingPlace,interiors);
 }
 function resetCrowd(){
   crowd=TownMovement.create(world);
@@ -89,6 +91,7 @@ canvas.addEventListener('click',event=>{
     return;
   }
   const closest=mapPins.reduce((best,pin)=>{
+    if(pin.indoors&&!interiors)return best;
     const distance=Math.hypot(x-pin.x,y-pin.y+4);
     return distance<best.distance?{pin,distance}:best;
   },{pin:null,distance:Math.max(27,canvas.width/bounds.width*15)});
@@ -245,7 +248,7 @@ function render(){
   $('skyIcon').title=world.power?'停电':world.weather;
   $('tokens').textContent=`今天还有 ${world.tokens} 次`;
   TownMap.portrait($('portrait'),p);
-  document.querySelectorAll('[data-kind]').forEach(button=>button.disabled=world.tokens<=0||(button.dataset.kind==='delay'&&(world.tick%48<14||world.tick%48>=18)));
+  document.querySelectorAll('[data-kind]').forEach(button=>button.disabled=world.tokens<=0||(button.dataset.kind==='delay'&&!Town.canDelay(world,p)));
   if(world.tokens<=0)choosingPlace=false;
   $('redirect').disabled=world.tokens<=0;
   $('redirect').setAttribute('aria-expanded',String(choosingPlace));
@@ -298,6 +301,17 @@ function openJournal(){
 $('step').onclick=()=>{advance();manualUntil=performance.now()+5500;scheduleNext();refreshMotion();};
 $('auto').onclick=()=>setRunning(!running);
 $('speed').onclick=()=>{fast=!fast;$('speed').textContent=fast?'3×':'1×';scheduleNext();};
+function showHomeMode(){
+  $('homeView').setAttribute('aria-pressed',String(interiors));
+  $('homeView').textContent=interiors?'屋内':'外观';
+  $('homeView').setAttribute('aria-label',interiors?'屋内视图':'住宅外观');
+}
+$('homeView').onclick=()=>{
+  interiors=!interiors;
+  localStorage.setItem(KEY+':interiors',interiors?'on':'off');
+  showHomeMode();paint();
+};
+showHomeMode();
 $('person').onchange=render;
 $('redirect').onclick=()=>{choosingPlace=!choosingPlace;render();};
 $('openJournal').onclick=$('mapStory').onclick=openJournal;

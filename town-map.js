@@ -32,7 +32,7 @@ const TownMap = (() => {
     ellipse(ctx,-7,-41,8,5,'#d5df8b55');
     ctx.restore();
   }
-  function terrain(ctx,lit){
+  function terrain(ctx,lit,interiors){
     const grass=ctx.createLinearGradient(0,0,960,620);
     grass.addColorStop(0,'#91aa67');grass.addColorStop(.5,'#bcc987');grass.addColorStop(1,'#9eb781');
     ctx.fillStyle=grass;ctx.fillRect(0,0,960,620);
@@ -65,7 +65,7 @@ const TownMap = (() => {
     for(let i=0;i<17;i++)tree(ctx,29+i*55,65+(i*29)%40,.72+(i%4)*.15,i);
     for(let i=0;i<17;i++)tree(ctx,50+(i*73)%260,369+(i*43)%126,.62+(i%4)*.13,i);
     for(const [x,y] of [[342,211],[303,284],[464,146],[691,170],[841,239],[463,388],[624,374],[718,460],[874,352],[372,432],[665,592]])tree(ctx,x,y,.85,x);
-    TownArt.buildings(ctx,lit,{polygon,ellipse,line});
+    TownArt.buildings(ctx,lit,{polygon,ellipse,line},interiors);
     ellipse(ctx,549,357,79,51,'#c3ab81');ellipse(ctx,547,352,74,47,'#eed4a6');
     ellipse(ctx,547,342,25,15,'#aa936c');ellipse(ctx,547,339,21,11,'#76aaa6');
     ellipse(ctx,545,337,7,4,'#c0ded1');
@@ -88,7 +88,6 @@ const TownMap = (() => {
   const street = [[244,315],[359,275],[430,272],[551,268],[704,279],[769,287]];
   // Street-side stops and open ground, kept clear of buildings, water and the fountain.
   const stops={
-    homes:[[66,317],[86,309],[102,323],[115,310],[129,321],[141,309],[155,323],[167,311],[178,323],[191,311],[205,323],[214,310],[228,321],[246,324],[260,319],[274,313],[289,309],[302,305],[316,300],[333,294],[350,282],[192,283],[204,289],[94,290],[146,285],[262,290],[78,327],[120,328],[236,300],[283,298]],
     bakery:[[365,270],[382,270],[398,268],[412,259],[426,246],[438,260],[456,266],[475,267],[393,242],[412,231],[441,231],[458,243],[487,270]],
     cafe:[[507,255],[527,265],[556,254],[576,247],[590,232],[605,247],[620,256],[635,265],[648,271],[570,269],[608,269],[548,238],[629,235],[644,248]],
     market:[[685,275],[701,285],[718,273],[734,284],[749,275],[764,261],[780,272],[796,282],[815,282],[834,293],[852,299],[869,295],[741,245],[756,234],[775,239],[795,248]],
@@ -97,13 +96,14 @@ const TownMap = (() => {
     forest:[[239,330],[231,349],[224,366],[215,386],[220,405],[235,420],[251,414],[269,427],[253,440],[231,446],[210,431],[195,415],[178,420],[165,435],[151,452]]
   };
   const entrances = {
-    homes:{junction:0,walk:[[231,311]]}, forest:{junction:0,walk:[[211,391]]},
+    homes:{junction:0}, forest:{junction:0,walk:[[211,391]]},
     bakery:{junction:2,walk:[[427,233]]}, cafe:{junction:3,walk:[[588,270],[588,249]]},
     square:{junction:3,walk:[[550,320],[510,323],[505,342],[506,356]]},
     station:{junction:3,walk:[[550,353],[628,427],[717,465]]},
     market:{junction:5,walk:[[770,250]]}
   };
-  function approach(pin){
+  function approach(pin,resident){
+    if(pin.place==='homes')return TownHomes.approach(resident.id);
     const walk=entrances[pin.place].walk;
     if(pin.place==='station'&&pin.x<715)return walk.slice(0,2);
     if(pin.place==='forest'&&pin.y<382)return [];
@@ -116,7 +116,7 @@ const TownMap = (() => {
     const middle=street.slice(Math.min(a.junction,b.junction),Math.max(a.junction,b.junction)+1);
     if(a.junction>b.junction)middle.reverse();
     const lane=(from.resident.id%5-2)*3;
-    return [start,...approach(from).slice().reverse(),...middle.map(([x,y])=>[x,y+lane]),...approach(to),end];
+    return [start,...approach(from,from.resident).slice().reverse(),...middle.map(([x,y])=>[x,y+lane]),...approach(to,from.resident),end];
   }
   function plan(points){
     const lengths=points.slice(1).map(([x,y],i)=>Math.hypot(x-points[i][0],y-points[i][1]));
@@ -151,16 +151,17 @@ const TownMap = (() => {
     figure(ctx,resident,32,38,0,2.65);
   }
   function findPlace(x,y){
+    if(TownHomes.hit(x,y))return 'homes';
     return Object.entries(locations).find(([,p])=>Math.hypot(x-p.x,y-p.y)<47||Math.abs(x-p.x)<53&&Math.abs(y-p.labelY)<20)?.[0];
   }
   const backgrounds=new Map();
-  function background(night,lit,dusk){
-    const key=night?(lit?'night':'outage'):dusk?'dusk':'day';
+  function background(night,lit,dusk,interiors){
+    const key=(night?(lit?'night':'outage'):dusk?'dusk':'day')+(interiors?'-interiors':'');
     if(!backgrounds.has(key)){
       const canvas=document.createElement('canvas');
       canvas.width=960;canvas.height=620;
       const ctx=canvas.getContext('2d');
-      terrain(ctx,lit);
+      terrain(ctx,lit,interiors);
       if(night||dusk){
         ctx.fillStyle=night?'#25385d58':'#af614b26';ctx.fillRect(0,0,960,620);
       }
@@ -172,16 +173,19 @@ const TownMap = (() => {
     const {x,y}=locations[place];
     return {left:(x+47)/9.6,top:(y+8)/6.2};
   }
-  function draw(ctx,world,selection,displayWidth,pins,choosingPlace){
+  function draw(ctx,world,selection,displayWidth,pins,choosingPlace,interiors){
     const labelScale=Math.min(1.8,Math.max(1,640/displayWidth));
     const hour=world.tick%48/2;
     const night=hour<6||hour>=20;
-    ctx.drawImage(background(night,night&&!world.power,hour>=18),0,0);
+    ctx.drawImage(background(night,night&&!world.power,hour>=18,interiors),0,0);
     TownArt.keepsakes(ctx,world.keepsakes??[],night,{polygon,ellipse,line});
-    for(const {resident,place,x,y,step} of pins){
-      if(resident.id===selection)ellipse(ctx,x,y+3,10,6,'#f9d17a');
-      figure(ctx,resident,x,y,step);
-      if(world.power&&place==='square')ellipse(ctx,x+8,y-1,3,3,'#fff0a4');
+    for(const {resident,x,y,step,indoors,activity} of pins){
+      if(indoors&&!interiors)continue;
+      if(resident.id===selection)ellipse(ctx,x,y+3,indoors?7:10,indoors?4:6,'#f9d17a');
+      if(indoors&&activity==='sleep'&&!step){
+        ellipse(ctx,x+2,y+1,5,3,color(resident.id));ellipse(ctx,x-3,y,2.6,2.6,'#f4c695');
+      }else figure(ctx,resident,x,y,step,indoors?.74:1);
+      if(activity==='stars')ellipse(ctx,x+8,y-1,3,3,'#fff0a4');
     }
     for(const [id,{x,labelY}] of Object.entries(locations)){
       const text=Town.places[id].name;
@@ -195,7 +199,7 @@ const TownMap = (() => {
       if(world.weather==='小雪')ellipse(ctx,x,y,2,2,'#fffdf1bb');
       else line(ctx,[[x,y],[x-3,y+8]],'#e8f1fa99',1.5);
     }
-    const active=pins.find(pin=>pin.resident.id===selection);
+    const active=pins.find(pin=>pin.resident.id===selection&&(!pin.indoors||interiors));
     if(active){
       ctx.font=`700 ${13*labelScale}px system-ui, sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';
       const w=ctx.measureText(active.resident.name).width+18;

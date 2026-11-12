@@ -1,7 +1,7 @@
 'use strict';
 
 const TownArt=(()=>{
-  function buildings(ctx,lit,{polygon,ellipse,line}){
+  function buildings(ctx,lit,{polygon,ellipse,line},interiors){
     const poly=(points,color)=>polygon(ctx,points,color);
     const oval=(x,y,w,h,color)=>ellipse(ctx,x,y,w,h,color);
     const stroke=(points,color,width=1)=>line(ctx,points,color,width);
@@ -33,6 +33,8 @@ const TownArt=(()=>{
       for(let i=-2;i<=2;i++)oval(x+i*2.7,y-2-Math.abs(i%2)*2,2,2,['#eac468','#ec977b','#fff3ce'][Math.abs(i)%3]);
     }
 
+    if(interiors)TownHomes.draw(ctx,lit,{polygon,ellipse,line});
+    else{
     // Tall blue cottage, with a dormer and shingled gable.
     oval(115,212,48,12,'#3d503442');
     poly([[80,165],[99,145],[148,160],[159,171],[159,207],[80,207]],'#749592');
@@ -68,6 +70,8 @@ const TownArt=(()=>{
     stroke([[230,238],[251,219],[279,236]],'#c7adc579');
     window(230,251,13,12);door(253,250,13,26,'#8d765d');window(272,252,11,11);
     oval(302,270,9,8,'#789454');planter(231,275);planter(281,274);
+
+    }
 
     // Bakery: brick oven chimney, curved shop window and striped canopy.
     oval(428,221,60,11,'#3d503442');rect(378,163,97,51,'#d5a680');
