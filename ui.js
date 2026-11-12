@@ -10,7 +10,8 @@ if(isNew){
   while(world.tick<15)Town.step(world);
 }
 let timer=null,audio=null,running=false,fast=false,choosingPlace=false,frame=null;
-let mapPins=TownMap.people(world);
+let lastFrame=null,manualUntil=0;
+let crowd=TownMovement.create(world),mapPins=crowd.pins();
 let seenStory=world.sequence;
 let watched=Number.isInteger(world.watchedEvent)?world.watchedEvent:null;
 const save=()=>SaveManager.save(localStorage,KEY,{...world,watchedEvent:watched,savedAt:Date.now()},Town.valid);
@@ -38,7 +39,7 @@ if($('offline').checked&&world.savedAt){
   const elapsed=Math.max(0,Math.min(48,Math.floor((Date.now()-world.savedAt)/600000)));
   for(let i=0;i<elapsed;i++)Town.step(world);
   if(elapsed)$('notice').textContent=`离线期间，小镇推进了 ${elapsed/2} 小时。`;
-  mapPins=TownMap.people(world);
+  resetCrowd();
 }
 function beep(){
   if(!audio)return;
@@ -49,34 +50,33 @@ function beep(){
 }
 
 function paint(){
-  TownMap.draw(ctx,world,selected().id,canvas.clientWidth,mapPins,choosingPlace);
+  const p=selected();
+  const pin=mapPins.find(walker=>walker.resident.id===p.id);
+  const place=Town.places[p.place].name;
+  const activity=pin?.place===p.place?place:`去${place}的路上`;
+  const bio=`${activity} · 心情 ${p.mood} · ${p.money} 元${p.questioned?' · 察觉异常':''}`;
+  if($('bio').textContent!==bio)$('bio').textContent=bio;
+  TownMap.draw(ctx,world,p.id,canvas.clientWidth,mapPins,choosingPlace);
 }
-function syncMap(){
-  if(frame!==null)cancelAnimationFrame(frame);
+function resetCrowd(){
+  crowd=TownMovement.create(world);
+  mapPins=crowd.pins();
+}
+function refreshMotion(){
+  const active=!motion.matches&&!document.hidden&&!$('journal').open&&(running||performance.now()<manualUntil);
+  if(active&&frame===null)frame=requestAnimationFrame(animate);
+  if(!active&&frame!==null){cancelAnimationFrame(frame);frame=null;lastFrame=null;}
+}
+function animate(now){
   frame=null;
-  const targets=TownMap.people(world);
-  const previous=new Map(mapPins.map(pin=>[pin.resident.id,pin]));
-  const journeys=targets.map(to=>{
-    const from=previous.get(to.resident.id)||to;
-    return {to,path:TownMap.plan(TownMap.route(from,to))};
-  });
-  if(motion.matches||!journeys.some(({path})=>path.total>1)){
-    mapPins=targets;paint();return;
-  }
-  const started=performance.now();
-  const duration=fast?850:2250;
-  function animate(now){
-    const fraction=Math.min(1,(now-started)/duration);
-    mapPins=journeys.map(({to,path},i)=>{
-      const stagger=(i%6)*.032;
-      const progress=Math.max(0,Math.min(1,(fraction-stagger)/(1-stagger)));
-      const [x,y]=TownMap.position(path,progress);
-      return {...to,x,y,step:path.total>1&&progress<1?Math.sin(now/52)*2:0};
-    }).sort((a,b)=>a.y-b.y);
+  if(lastFrame!==null){
+    crowd.advance(Math.min(.05,(now-lastFrame)/1000)*(fast?3:1),running);
+    mapPins=crowd.pins();
     paint();
-    frame=fraction<1?requestAnimationFrame(animate):null;
   }
-  frame=requestAnimationFrame(animate);
+  lastFrame=now;
+  refreshMotion();
+  if(frame===null)lastFrame=null;
 }
 canvas.addEventListener('click',event=>{
   const bounds=canvas.getBoundingClientRect();
@@ -152,7 +152,6 @@ function render(){
   $('skyIcon').title=world.power?'停电':world.weather;
   $('tokens').textContent=`今天还有 ${world.tokens} 次`;
   TownMap.portrait($('portrait'),p);
-  $('bio').textContent=`${Town.places[p.place].name} · 心情 ${p.mood} · ${p.money} 元${p.questioned?' · 察觉异常':''}`;
   document.querySelectorAll('[data-kind]').forEach(button=>button.disabled=world.tokens<=0||(button.dataset.kind==='delay'&&(world.tick%48<14||world.tick%48>=18)));
   if(world.tokens<=0)choosingPlace=false;
   $('redirect').disabled=world.tokens<=0;
@@ -168,7 +167,9 @@ function render(){
   paint();
 }
 function advance(){
-  Town.step(world);save();syncMap();render();
+  Town.step(world);
+  if(motion.matches)resetCrowd();
+  save();render();
 }
 function scheduleNext(delay=fast?1200:3600){
   clearTimeout(timer);
@@ -176,11 +177,13 @@ function scheduleNext(delay=fast?1200:3600){
 }
 function setRunning(next){
   running=next;
+  manualUntil=0;
   $('auto').textContent=running?'Ⅱ':'▶';
   $('auto').setAttribute('aria-pressed',String(running));
   $('auto').setAttribute('aria-label',running?'暂停时间':'继续时间');
   $('auto').title=running?'暂停时间':'继续时间';
   scheduleNext();
+  refreshMotion();
 }
 function intervene(kind,place){
   const before=world.sequence;
@@ -195,15 +198,16 @@ function openJournal(){
   renderJournal();
   $('journal').showModal();
   clearTimeout(timer);
+  refreshMotion();
 }
-$('step').onclick=()=>{advance();scheduleNext();};
+$('step').onclick=()=>{advance();manualUntil=performance.now()+5500;scheduleNext();refreshMotion();};
 $('auto').onclick=()=>setRunning(!running);
 $('speed').onclick=()=>{fast=!fast;$('speed').textContent=fast?'3×':'1×';scheduleNext();};
 $('person').onchange=render;
 $('redirect').onclick=()=>{choosingPlace=!choosingPlace;render();};
 $('openJournal').onclick=$('mapStory').onclick=openJournal;
 $('closeJournal').onclick=()=>$('journal').close();
-$('journal').addEventListener('close',()=>scheduleNext());
+$('journal').addEventListener('close',()=>{scheduleNext();refreshMotion();});
 $('sound').onclick=async()=>{
   if(audio){await audio.close();audio=null;}else{audio=new AudioContext();await audio.resume();beep();}
   const label=audio?'关闭音效':'开启音效';
@@ -226,15 +230,14 @@ $('import').onchange=async event=>{
     const newWatch=Number.isInteger(data.watchedEvent)?data.watchedEvent:null;
     if(!SaveManager.save(localStorage,KEY,{...data,savedAt:Date.now()},Town.valid))throw new Error();
     world=data;watched=newWatch;seenStory=world.sequence;choosingPlace=false;
-    if(frame!==null)cancelAnimationFrame(frame);
-    frame=null;mapPins=TownMap.people(world);populateResidents();
+    resetCrowd();populateResidents();
     render();$('notice').textContent='已恢复存档。';
   }catch{$('notice').textContent='存档无效或无法写入。';}
   finally{event.target.value='';}
 };
 window.addEventListener('resize',paint);
-document.addEventListener('visibilitychange',()=>{if(!$('journal').open)scheduleNext();});
+document.addEventListener('visibilitychange',()=>{scheduleNext();refreshMotion();});
+motion.addEventListener('change',()=>{if(motion.matches){resetCrowd();paint();}refreshMotion();});
 window.addEventListener('pagehide',save);
 save();render();
 setRunning(true);
-if(isNew)scheduleNext(850);

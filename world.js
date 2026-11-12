@@ -42,14 +42,18 @@ const Town = (() => {
   const workStartTick=p=>18+p.id%3;
   function schedule(w,p) {
     const h=w.tick%48/2;
-    if(w.power&&h>=18&&h<22)return 'square';
     if(p.override?.until>w.tick)return p.override.place;
+    if(w.power&&(p.id%5===0||p.id%7===0)&&h>=19+(p.id%3)*.5&&h<21+(p.id%2)*.5)return 'square';
     const leaves=7.5+(p.id%4)*.5, workStarts=workStartTick(p)/2;
-    const goesHome=21.5+(p.id%3)*.5;
+    const goesHome=20.5+(p.id%6)*.5;
     if(h<leaves||h>=goesHome)return 'homes';
     if(h<workStarts||p.delay>w.tick)return 'station';
-    if(h>=12&&h<13&&p.id%3===0)return 'square';
-    if(h<17)return p.job;
+    const lunch=12+(Math.floor(p.id/3)%2)*.5;
+    if(h>=lunch&&h<lunch+1&&p.id%3===0)return p.id%4===0?'bakery':'square';
+    if(h<17+(p.id%3)*.5)return p.job;
+    const errand=18.5+(p.id%4)*.5;
+    if(h>=errand&&h<errand+1.5&&((w.seed>>>(p.id%24))&3)===0)return p.id%2?'bakery':'market';
+    if(p.habit==='square'&&p.id%3===1)return p.id%4===0?'market':'forest';
     return p.habit;
   }
   function influence(w,id,kind,place) {
@@ -156,7 +160,7 @@ const Town = (() => {
     }
     if(hour===38&&random(w)<.3){
       w.power=true;
-      log(w,'小镇停电，居民带着手电和火把来到广场看星星。',null,'blackout');
+      log(w,'小镇停电，有些居民准备带着手电去广场看星星。',null,'blackout');
     }
     if(hour===44&&w.power){w.power=false;log(w,'电力恢复，居民陆续回家。');}
     for(const p of w.people){

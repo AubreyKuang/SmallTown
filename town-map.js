@@ -104,40 +104,38 @@ const TownMap = (() => {
     }
     for(let i=0;i<6;i++)line(ctx,[[634+i*8,479+i*7],[660+i*8,462+i*7]],'#ad8961',5);
   }
-  function people(world){
-    const groups=new Map();
-    for(const resident of world.people){
-      if(!groups.has(resident.place))groups.set(resident.place,[]);
-      groups.get(resident.place).push(resident);
-    }
-    const pins=[];
-    for(const [place,residents] of groups){
-      const p=locations[place];
-      const columns=Math.min(residents.length,8);
-      residents.forEach((resident,i)=>{
-        const stroll=(world.tick+resident.id*3)%8;
-        const x=p.x+(i%columns-(columns-1)/2)*17+Math.sin(stroll*Math.PI/4)*5;
-        const y=p.y+Math.floor(i/columns)*15+15+Math.cos(stroll*Math.PI/4)*4;
-        pins.push({resident,place,x,y});
-      });
-    }
-    return pins.sort((a,b)=>a.y-b.y);
-  }
   const street = [[244,315],[359,275],[430,272],[551,268],[704,279],[769,287]];
+  // Street-side stops and open ground, kept clear of buildings, water and the fountain.
+  const stops={
+    homes:[[66,317],[86,309],[102,323],[115,310],[129,321],[141,309],[155,323],[167,311],[178,323],[191,311],[205,323],[214,310],[228,321],[246,324],[260,319],[274,313],[289,309],[302,305],[316,300],[333,294],[350,282],[192,283],[204,289],[94,290],[146,285],[262,290],[78,327],[120,328],[236,300],[283,298]],
+    bakery:[[365,270],[382,270],[398,268],[412,259],[426,246],[438,260],[456,266],[475,267],[393,242],[412,231],[441,231],[458,243],[487,270]],
+    cafe:[[507,255],[527,265],[556,254],[576,247],[590,232],[605,247],[620,256],[635,265],[648,271],[570,269],[608,269],[548,238],[629,235],[644,248]],
+    market:[[685,275],[701,285],[718,273],[734,284],[749,275],[764,261],[780,272],[796,282],[815,282],[834,293],[852,299],[869,295],[741,245],[756,234],[775,239],[795,248]],
+    square:[[492,351],[504,360],[485,367],[498,380],[514,378],[525,362],[539,365],[550,378],[563,360],[575,370],[591,359],[604,351],[611,368],[595,383],[578,386],[527,389],[550,397],[568,401],[593,399],[617,379],[474,354],[471,373],[484,391],[507,395]],
+    station:[[633,431],[649,438],[666,444],[683,453],[698,462],[722,469],[740,467],[751,481],[768,475],[785,480],[801,470],[819,482],[835,465],[854,469],[863,486],[757,449],[723,485],[773,495],[813,494],[687,473],[658,457],[708,442],[736,451],[845,492]],
+    forest:[[239,330],[231,349],[224,366],[215,386],[220,405],[235,420],[251,414],[269,427],[253,440],[231,446],[210,431],[195,415],[178,420],[165,435],[151,452]]
+  };
   const entrances = {
     homes:{junction:0,walk:[[231,311]]}, forest:{junction:0,walk:[[211,391]]},
     bakery:{junction:2,walk:[[427,233]]}, cafe:{junction:3,walk:[[588,270],[588,249]]},
-    square:{junction:3,walk:[[550,333]]},
+    square:{junction:3,walk:[[550,320],[510,323],[505,342],[506,356]]},
     station:{junction:3,walk:[[550,353],[628,427],[717,465]]},
     market:{junction:5,walk:[[770,250]]}
   };
+  function approach(pin){
+    const walk=entrances[pin.place].walk;
+    if(pin.place==='station'&&pin.x<715)return walk.slice(0,2);
+    if(pin.place==='forest'&&pin.y<382)return [];
+    return walk;
+  }
   function route(from,to){
     const a=entrances[from.place],b=entrances[to.place];
     const start=[from.x,from.y],end=[to.x,to.y];
     if(a===b)return [start,end];
     const middle=street.slice(Math.min(a.junction,b.junction),Math.max(a.junction,b.junction)+1);
     if(a.junction>b.junction)middle.reverse();
-    return [start,...a.walk,...middle,...b.walk.slice().reverse(),end];
+    const lane=(from.resident.id%5-2)*3;
+    return [start,...approach(from).slice().reverse(),...middle.map(([x,y])=>[x,y+lane]),...approach(to),end];
   }
   function plan(points){
     const lengths=points.slice(1).map(([x,y],i)=>Math.hypot(x-points[i][0],y-points[i][1]));
@@ -194,10 +192,10 @@ const TownMap = (() => {
     const hour=world.tick%48/2;
     const night=hour<6||hour>=20;
     ctx.drawImage(background(night,night&&!world.power,hour>=18),0,0);
-    for(const {resident,x,y,step} of pins){
+    for(const {resident,place,x,y,step} of pins){
       if(resident.id===selection)ellipse(ctx,x,y+3,10,6,'#f9d17a');
       figure(ctx,resident,x,y,step);
-      if(world.power&&resident.place==='square')ellipse(ctx,x+8,y-1,3,3,'#fff0a4');
+      if(world.power&&place==='square')ellipse(ctx,x+8,y-1,3,3,'#fff0a4');
     }
     for(const [id,{x,labelY}] of Object.entries(locations)){
       const text=Town.places[id].name;
@@ -220,5 +218,5 @@ const TownMap = (() => {
     }
     return pins;
   }
-  return { draw, people, portrait, route, plan, position, findPlace };
+  return { draw, stops, portrait, route, plan, position, findPlace };
 })();
