@@ -276,11 +276,19 @@ const TownMap = (() => {
     atmosphere(ctx,world,time,night);
     rollingStock(ctx,TownRail.train(world.tick,progress));
     for(const traveler of TownRail.passengers(world.tick,progress)){
-      const {id,x,y,phase}=traveler;
+      const {id,x,y,phase,visitor}=traveler;
       const walking=['alight','walk','board'].includes(phase);
       figure(ctx,{id},x,y,walking?Math.sin(time/110+id)*1.4:0,.85);
       ctx.fillStyle='#96684e';ctx.fillRect(x+4,y+1,3.5,4);
       line(ctx,[[x+4.6,y+1],[x+4.6,y],[x+6.2,y]],'#6a4e3b',.8);
+      if(visitor){
+        ctx.font=`600 ${13*labelScale}px system-ui, sans-serif`;
+        ctx.textAlign='center';ctx.textBaseline='middle';
+        const w=ctx.measureText(visitor.name).width+12;
+        ctx.beginPath();ctx.roundRect(x-w/2,y-16-17*labelScale,w,17*labelScale,4);
+        ctx.fillStyle='#63462e';ctx.fill();
+        ctx.fillStyle='#fff3d6';ctx.fillText(visitor.name,x,y-16-8.5*labelScale);
+      }
     }
     for(const {resident,x,y,step,indoors,activity,social,partner} of pins){
       if(indoors&&!interiors)continue;

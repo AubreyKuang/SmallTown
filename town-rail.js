@@ -29,12 +29,11 @@ const TownRail=(()=>{
   }
 
   const paths=new Map();
-  function route(index,offset){
-    const key=index*4+offset;
+  function route(destination,offset){
+    const key=`${destination}:${offset}`;
     if(!paths.has(key)){
       const station=[822+offset*4,471+offset*6],platform=[879,449+offset*17],door=[891,449+offset*17];
-      const destination=destinations[(index+offset)%destinations.length];
-      const [x,y]=stops[(index+offset)%stops.length];
+      const [x,y]=stops[destinations.indexOf(destination)];
       const target=[x+offset*4,y+offset*5];
       const street=TownMap.plan(TownMap.route({place:'station',x:station[0],y:station[1],resident:{id:offset+1}},
         {place:destination,x:target[0],y:target[1]}));
@@ -51,10 +50,11 @@ const TownRail=(()=>{
       for(let i=0;i<origin.arrivals;i++){
         const alight=origin.start+1.07+i*.09,board=next.start+1.56+i*.075;
         if(time<alight||time>=board+.15)continue;
-        const p=route(origin.index,i);
+        const visit=TownVisitors.passenger(origin,i);
+        const p=route(visit?.profile.place??destinations[(origin.index+i)%destinations.length],i);
         let position,phase;
-        const explore=origin.start+2.2+i*.12,reach=origin.start+5.6+i*.12;
-        const returnAt=Math.max(reach,next.start-3.2-i*.08),queueAt=next.start+.36+i*.11;
+        const explore=origin.start+2.2+i*.12,reach=visit?.reach??origin.start+5.6+i*.12;
+        const returnAt=visit?.leave??Math.max(reach,next.start-3.2-i*.08),queueAt=next.start+.36+i*.11;
         if(time<returnAt&&(origin.day<day||origin.index===2&&time>=origin.day*48+44))continue;
         if(time<explore){
           position=TownMap.position(p.platformPath,fraction(time,alight,explore));phase='alight';
@@ -69,7 +69,8 @@ const TownRail=(()=>{
         }else{
           position=TownMap.position(p.board,fraction(time,board,board+.15));phase='board';
         }
-        pins.push({id:100+(origin.day+1)*12+origin.index*4+i,x:position[0],y:position[1],phase});
+        pins.push({id:visit?.profile.sprite??100+(origin.day+1)*12+origin.index*4+i,
+          visitor:visit?.profile,x:position[0],y:position[1],phase});
       }
     }
     return pins;

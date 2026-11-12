@@ -205,6 +205,10 @@ const Town = (() => {
     TownMoments.step(w,(...args)=>log(w,...args),(...args)=>memory(w,...args));
     TownWishes.step(w,(...args)=>log(w,...args),(...args)=>memory(w,...args));
     TownRelations.step(w,(...args)=>log(w,...args),(...args)=>memory(w,...args));
+    TownVisitors.step(w,(...args)=>log(w,...args),(resident,visitor,emotion,interpretation,source)=>{
+      NPCMemory.record(w,{type:'visitor-meeting',time:w.tick,participants:[resident.id,visitor],source},
+        [{person:resident.id,subject:visitor,emotion,impact:75,interpretation}]);
+    });
     TownSkeptic.step(w,(...args)=>log(w,...args),(...args)=>memory(w,...args));
     TownRipples.step(w,(...args)=>log(w,...args));
     TownGoals.check(w);
@@ -219,7 +223,7 @@ const Town = (() => {
     &&w.people.every(p=>Object.hasOwn(places,p.job)&&Object.hasOwn(places,p.habit)&&p.trust&&typeof p.trust==='object')
     &&Array.isArray(w.pending)&&w.pending.every(p=>['late','help','meeting','loan'].includes(p.kind)&&w.people.some(person=>person.id===p.person))
     &&Number.isInteger(w.sequence)&&Number.isInteger(w.tokens)&&w.tokens>=0&&w.tokens<=5&&TownStories.valid(w)&&TownMoments.valid(w)&&TownWishes.valid(w)&&TownRelations.valid(w)
-    &&TownRipples.valid(w)&&TownSkeptic.valid(w)&&TownGoals.valid(w)&&TownPaper.valid(w);
+    &&TownRipples.valid(w)&&TownSkeptic.valid(w)&&TownGoals.valid(w)&&TownPaper.valid(w)&&TownWatch.valid(w)&&TownVisitors.valid(w);
   // Older saves carry no ripple, skeptic, goal or paper state. Those modules start fresh from the current tick.
   function migrate(data,from){
     if(!data||typeof data!=='object')return data;

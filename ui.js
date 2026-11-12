@@ -36,6 +36,7 @@ function save(){
 }
 let pulses=[],pulseSeq=world.sequence,fateTab='quests',paperIndex=0,threadRoot=null,toastTimer=null;
 let autoPaper=localStorage.getItem(KEY+':paper')!=='off';
+let skippedPaperDay=null;
 const selected=()=>world.people.find(p=>p.id===Number($('person').value))||world.people[0];
 
 function option(select,value,label){
@@ -131,6 +132,9 @@ canvas.addEventListener('click',event=>{
     const distance=Math.hypot(x-pin.x,y-pin.y+4);
     return distance<best.distance?{pin,distance}:best;
   },{pin:null,distance:Math.max(27,canvas.width/bounds.width*15)});
+  const guest=TownRail.passengers(world.tick,motion.matches?.62:tickProgress).find(pin=>
+    pin.visitor&&Math.min(Math.hypot(x-pin.x,y-pin.y+4),Math.hypot(x-pin.x,y-pin.y+26))<Math.min(24,closest.distance));
+  if(guest){openRail(guest.visitor.id);return;}
   if(closest.pin){
     $('person').value=closest.pin.resident.id;
     render();
@@ -150,6 +154,16 @@ function storyButton(label,action,css){
   button.onclick=action;
   return button;
 }
+function observeAt(at){
+  setRunning(false);
+  const previousPaper=world.papers?.at(-1);
+  while(world.tick<at)Town.step(world);
+  const latestPaper=world.papers?.at(-1);
+  if(latestPaper&&latestPaper!==previousPaper)skippedPaperDay=latestPaper.day;
+  resetCrowd();save();render();
+  canvas.focus({preventScroll:true});
+  canvas.scrollIntoView({block:'nearest'});
+}
 function renderRail(){
   const {active,next,phase}=TownRail.schedule(world.tick),button=$('openRail');
   const status={approach:'正在进站',platform:'正在上下车',departure:'正在发车'};
@@ -161,8 +175,27 @@ function renderRail(){
   for(const service of TownRail.services(Math.floor(world.tick/48))){
     list.append(storyNode('li',`${when(service.start+1)} 到站 · ${service.arrivals} 位下车 · ${service.departures} 位上车`));
   }
-  $('railPanel').replaceChildren(storyNode('h3',active?status[phase]:`下一班 ${when(next.start+1)}`),
-    storyNode('p','列车到站后，部分旅客会到店铺附近逛逛，再回来搭下一班。','story-meta'),list);
+  const guests=storyNode('div','','rail-guests');
+  for(const {profile,trip,history} of TownVisitors.timetable(world)){
+    const card=storyNode('section','','resident-section');
+    const heading=storyNode('h3',profile.name);
+    heading.id=`visitor-${profile.id}`;heading.tabIndex=-1;
+    card.append(heading,storyNode('p',profile.reason));
+    if(trip){
+      const timing=world.tick>=trip.arrival?'正在镇上':`${when(trip.arrival)} 到站`;
+      card.append(storyNode('p',`${timing} · ${when(trip.departure)} 返程`,'story-meta'));
+      if(world.tick<trip.arrival-1)card.append(storyButton('前往到站前半小时',()=>{
+        $('rail').close();observeAt(trip.arrival-1);
+      }));
+    }else card.append(storyNode('p','这一程已结束','story-meta'));
+    if(history?.lastMeeting){
+      const {day,text}=history.lastMeeting;
+      card.append(storyNode('p',`${day===Math.floor(world.tick/48)?'今天见面':'上次见面'} · 第 ${day+1} 天 · ${text}`,'story-result'));
+    }
+    guests.append(card);
+  }
+  $('railPanel').replaceChildren(storyNode('h3',active?status[phase]:`下一班 ${when(next.start+1)}`),list,
+    storyNode('h3','来镇上的旅客'),guests);
 }
 function renderWish(){
   const p=selected(),profile=TownWishes.profile(p.id),state=TownWishes.state(world,p.id),panel=$('wishPanel');
@@ -180,6 +213,14 @@ function renderWish(){
   const mood=p.mood>=80?'心情很好':p.mood>=55?'心情平稳':p.mood>=40?'有些低落':'很想独处';
   panel.replaceChildren(people,storyNode('p',`此刻 · ${residentActivity(p)} · ${mood}（${p.mood}）`,'story-meta'),
     storyNode('p',`「${thought}」`,'wish-thought'));
+  const following=TownWatch.ids(world).includes(p.id);
+  const atLimit=!following&&TownWatch.ids(world).length>=TownWatch.limit;
+  const followButton=storyButton(following?`取消关注 ${p.name}`:atLimit?'已关注 2 位居民':`关注 ${p.name}`,()=>{
+    if(TownWatch.toggle(world,p.id)){save();render();$('followResident').focus();}
+  });
+  followButton.id='followResident';followButton.disabled=atLimit;
+  const followActions=storyNode('div','','story-actions');
+  followActions.append(followButton);panel.append(followActions);
   const current=Town.activity(world,p);
   for(let tick=world.tick+1;tick<=world.tick+48;tick++){
     const next=Town.forecastPlan(world,p,tick);
@@ -445,6 +486,28 @@ function renderFollow(){
   if(sum.count)text.append(storyNode('em',` · 已牵动 ${sum.people.length} 人`));
   text.append(storyButton('因果链 ›',()=>openThread(rootId),'thread-entry'));
 }
+function renderWatch(){
+  const panel=$('residentWatch'),ids=TownWatch.ids(world);
+  panel.hidden=!ids.length;
+  const cards=ids.map(id=>{
+    const person=world.people.find(p=>p.id===id);
+    const [next]=TownWatch.appointments(world,person);
+    const latest=TownWatch.developments(world.events,id).at(-1);
+    const card=storyNode('div','','watch-person');
+    card.append(storyButton(`${person.name} 的档案 ›`,()=>{
+      $('person').value=id;render();openResidentProfile();
+    }));
+    if(next){
+      const at=next.at<=world.tick?'正在约定时段':when(next.at);
+      card.append(storyNode('p',`${next.title} · ${at} · ${Town.places[next.place].name}`));
+      if(next.at>world.tick+1)card.append(storyButton('到约定前半小时',()=>observeAt(next.at-1)));
+    }
+    if(latest&&world.tick-latest.tick<144)card.append(storyNode('p',latest.text,'story-meta'));
+    else if(!next)card.append(storyNode('p','还没有新的约定。','story-meta'));
+    return card;
+  });
+  panel.replaceChildren(storyNode('h2','关注的居民'),...cards);
+}
 function render(){
   const p=selected(),night=world.tick%48<12||world.tick%48>=40;
   $('clock').textContent=when(world.tick);
@@ -476,6 +539,7 @@ function render(){
   if($('stories').open)renderStories();
   if($('journal').open)renderJournal();
   renderFollow();
+  renderWatch();
   renderExtras();
   paint();
 }
@@ -546,7 +610,11 @@ $('openSchool').onclick=()=>openStories(true);
 $('closeStories').onclick=()=>$('stories').close();
 function openMoment(){renderMoment();$('moment').showModal();scheduleNext();refreshMotion();}
 $('closeMoment').onclick=()=>$('moment').close();
-$('openRail').onclick=()=>{$('rail').showModal();renderRail();scheduleNext();refreshMotion();};
+function openRail(visitor){
+  $('rail').showModal();renderRail();scheduleNext();refreshMotion();
+  if(visitor)$(`visitor-${visitor}`)?.focus();
+}
+$('openRail').onclick=()=>openRail();
 $('closeRail').onclick=()=>$('rail').close();
 function openResidentProfile(){
   renderWish();
@@ -640,7 +708,7 @@ function renderExtras(){
   collectPulses();
   const latest=world.papers?.at(-1);
   $('paperDot').hidden=!latest||latest.read;
-  if(latest&&!latest.read&&autoPaper&&!modalOpen()&&!document.hidden)openPaper();
+  if(latest&&!latest.read&&latest.day!==skippedPaperDay&&autoPaper&&!modalOpen()&&!document.hidden)openPaper();
   if($('toast').hidden)drainFresh();
   if($('fate').open)renderFate();
   if($('thread').open)renderThread();

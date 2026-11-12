@@ -2,8 +2,8 @@ const assert = require('node:assert/strict');
 const {test} = require('node:test');
 const {readFileSync} = require('node:fs');
 const vm = require('node:vm');
-const source=['npc-memory.js','save-manager.js','town-school.js','town-stories.js','town-routines.js','town-moments.js','town-rail.js','town-wishes.js','town-relations.js','town-ripples.js','town-skeptic.js','town-goals.js','town-paper.js','world.js','town-homes.js','town-interiors.js','town-map.js','town-movement.js'].map(name=>readFileSync(require('node:path').join(__dirname,'..',name),'utf8')).join('\n');
-const {Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes,TownRelations,TownRipples,TownSkeptic,TownGoals,TownPaper}=vm.runInNewContext(source+'\n({Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes,TownRelations,TownRipples,TownSkeptic,TownGoals,TownPaper})');
+const source=['npc-memory.js','save-manager.js','town-school.js','town-stories.js','town-routines.js','town-moments.js','town-visitors.js','town-rail.js','town-wishes.js','town-relations.js','town-ripples.js','town-skeptic.js','town-goals.js','town-watch.js','town-paper.js','world.js','town-homes.js','town-interiors.js','town-map.js','town-movement.js'].map(name=>readFileSync(require('node:path').join(__dirname,'..',name),'utf8')).join('\n');
+const {Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes,TownRelations,TownRipples,TownSkeptic,TownGoals,TownPaper,TownWatch,TownVisitors}=vm.runInNewContext(source+'\n({Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes,TownRelations,TownRipples,TownSkeptic,TownGoals,TownPaper,TownWatch,TownVisitors})');
 function to(w,t){while(w.tick<t)Town.step(w);}
 function visualRandom(seed){
   return ()=>{
@@ -354,6 +354,51 @@ test('train arrival, boarding, and return traffic follow the same timetable',()=
   assert.equal(guests.length,arrivals);
   const w=Town.create(8);to(w,start+2);
   assert.deepEqual(w.events.filter(e=>e.type==='rail').map(e=>e.tick).join(','),`${start+1},${start+2}`);
+});
+test('followed residents show shared appointments and the paper prints only new developments',()=>{
+  const w=Town.create(8);to(w,17);
+  assert.equal(TownWatch.toggle(w,6),true);
+  assert.equal(TownWatch.toggle(w,8),true);
+  assert.equal(TownWatch.toggle(w,1),false);
+  assert.equal(TownWatch.appointments(w,w.people[5])[0].at,34);
+  assert.equal(TownWatch.appointments(w,w.people[7])[0].place,'cafe');
+  to(w,48);
+  const first=w.papers[0].sections.find(s=>s.label==='关注的人 · 后来');
+  assert.match(first.text,/Nora/);
+  assert.equal(first.text.split('\n').length,1);
+  assert.equal(TownWatch.toggle(w,6),true);
+  assert.equal(TownWatch.toggle(w,8),true);
+  to(w,96);
+  assert.ok(!w.papers[1].sections.some(s=>s.label==='关注的人 · 后来'));
+  assert.ok(!Town.valid({...w,followedResidents:[6,6]}));
+});
+test('visitors ride actual trains and a returning visitor remembers the same resident',()=>{
+  const w=Town.create(8);
+  const arrival=TownRail.services(0)[0].start+1;
+  assert.equal(TownRail.passengers(arrival,.5).find(p=>p.visitor)?.visitor.id,'lin');
+  assert.equal(TownRail.passengers(arrival+10,.66).find(p=>p.visitor)?.phase,'board');
+  to(w,24);
+  const first=w.visitors.lin.lastMeeting;
+  assert.equal(w.visitors.lin.visits,1);
+  assert.ok(NPCMemory.recall(w,first.resident).some(m=>m.subject==='visitor:lin'));
+  assert.ok(!NPCMemory.recall(w,2).some(m=>m.subject==='visitor:lin'));
+  const loaded=JSON.parse(JSON.stringify(w));
+  assert.ok(Town.valid(loaded));
+  to(loaded,7*48+24);
+  assert.equal(loaded.visitors.lin.visits,2);
+  assert.equal(loaded.visitors.lin.lastMeeting.resident,first.resident);
+  assert.equal(loaded.events.filter(e=>e.type==='visitor-reunion').length,1);
+  assert.equal(loaded.visitors.yue.visits,1);
+  assert.equal(TownVisitors.timetable(loaded).find(v=>v.profile.id==='yue').trip,null);
+  assert.ok(!Town.valid({...loaded,visitors:{lin:{...loaded.visitors.lin,lastDay:8}}}));
+});
+test('a visitor leaves without a new memory when no eligible resident was at the stop',()=>{
+  const w=Town.create(8);
+  const events=[];
+  const log=(text,parent,type)=>{events.push(type);};
+  for(w.tick=18;w.tick<30;w.tick++)TownVisitors.step(w,log,()=>assert.fail('unexpected visitor memory'));
+  assert.deepEqual(events,['visitor-arrival']);
+  assert.equal(w.visitors.lin.lastMeeting,undefined);
 });
 test('wish dice preserve the resident’s hesitation on a low roll and a solo attempt on a middle roll',()=>{
   const low=Town.create(0);to(low,17);

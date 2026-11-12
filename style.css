@@ -66,6 +66,12 @@ dialog{width:min(760px,calc(100% - 24px));max-height:88vh;border:1px solid var(-
 
 /* Fit the complete town to the viewport and let the controls scroll independently. */
 .controls-panel{min-width:0}
+.resident-watch{padding:10px 12px;border-bottom:1px solid var(--line);background:#f6edd8}
+.resident-watch h2{font-size:15px}
+.watch-person{display:grid;justify-items:start;gap:5px;margin-top:7px;font-size:13px}
+.watch-person+.watch-person{border-top:1px solid var(--line);padding-top:7px}
+.watch-person button,.rail-guests button{min-height:34px}
+.rail-guests{display:grid;gap:8px}
 @media (min-width:900px) and (min-height:500px){
   .game{display:grid;grid-template-rows:auto minmax(0,1fr);height:100dvh;max-width:none;padding:8px 12px 12px}
   .topbar{margin-bottom:8px}
@@ -74,7 +80,7 @@ dialog{width:min(760px,calc(100% - 24px));max-height:88vh;border:1px solid var(-
   .map-frame{width:min(100cqw,calc(100cqh * 960 / 620));aspect-ratio:960 / 620}
   .controls-panel{display:flex;flex-direction:column;overflow-y:auto;border-left:1px solid #d5c6a4;scrollbar-gutter:stable}
   .controls-panel>*{flex-shrink:0}
-  .controls-panel>.time-controls{order:-2}
+  .controls-panel>.time-controls,.controls-panel>.resident-watch{order:-2}
   .controls-panel>.dock{order:-1;grid-template-columns:minmax(0,1fr);gap:12px;padding:12px}
   .controls-panel .cards{grid-template-columns:repeat(2,minmax(0,1fr))}
   .controls-panel .fate-head{flex-wrap:wrap}

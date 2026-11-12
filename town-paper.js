@@ -107,6 +107,8 @@ const TownPaper=(()=>{
     const found=discovery(w,s);if(found)sections.push({label:'新发现',text:found});
     sections.push({label:'小镇趣闻',text:funLine(w,events,d)});
     const relation=relationLine(w,s,events);if(relation)sections.push({label:'关系变化',text:relation});
+    const followed=TownWatch.daily(w,events);
+    if(followed.length)sections.push({label:'关注的人 · 后来',text:followed.join('\n')});
     const notes=(w.skeptic?.notes??[]).filter(n=>n.day===d);
     if(notes.length)sections.push({label:'怪谈专栏',text:`Newton 的笔记本多了 ${notes.length} 页：“${notes.at(-1).text}”`});
     else if((w.skeptic?.stage??0)>=1)sections.push({label:'怪谈专栏',text:'Newton 今天没有新的记录，但他还在观察。'});
