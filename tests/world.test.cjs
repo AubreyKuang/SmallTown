@@ -2,8 +2,8 @@ const assert = require('node:assert/strict');
 const {test} = require('node:test');
 const {readFileSync} = require('node:fs');
 const vm = require('node:vm');
-const source=['npc-memory.js','save-manager.js','town-school.js','town-stories.js','town-routines.js','town-moments.js','town-visitors.js','town-rail.js','town-wishes.js','town-relations.js','town-ripples.js','town-skeptic.js','town-goals.js','town-watch.js','town-paper.js','world.js','town-homes.js','town-interiors.js','town-map.js','town-movement.js'].map(name=>readFileSync(require('node:path').join(__dirname,'..',name),'utf8')).join('\n');
-const {Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes,TownRelations,TownRipples,TownSkeptic,TownGoals,TownPaper,TownWatch,TownVisitors}=vm.runInNewContext(source+'\n({Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes,TownRelations,TownRipples,TownSkeptic,TownGoals,TownPaper,TownWatch,TownVisitors})');
+const source=['npc-memory.js','save-manager.js','town-school.js','town-stories.js','town-routines.js','town-moments.js','town-visitors.js','town-rail.js','town-wishes.js','town-relations.js','town-ripples.js','town-skeptic.js','town-goals.js','town-watch.js','town-twilight.js','town-paper.js','world.js','town-homes.js','town-interiors.js','town-atmosphere.js','town-map.js','town-movement.js'].map(name=>readFileSync(require('node:path').join(__dirname,'..',name),'utf8')).join('\n');
+const {Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes,TownRelations,TownRipples,TownSkeptic,TownGoals,TownPaper,TownWatch,TownVisitors,TownTwilight,TownAtmosphere}=vm.runInNewContext(source+'\n({Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes,TownRelations,TownRipples,TownSkeptic,TownGoals,TownPaper,TownWatch,TownVisitors,TownTwilight,TownAtmosphere})');
 function to(w,t){while(w.tick<t)Town.step(w);}
 function visualRandom(seed){
   return ()=>{
@@ -399,6 +399,43 @@ test('a visitor leaves without a new memory when no eligible resident was at the
   for(w.tick=18;w.tick<30;w.tick++)TownVisitors.step(w,log,()=>assert.fail('unexpected visitor memory'));
   assert.deepEqual(events,['visitor-arrival']);
   assert.equal(w.visitors.lin.lastMeeting,undefined);
+});
+test('a rainy lantern evening moves indoors and a successful invitation survives a reload',()=>{
+  const w=Town.create(8);to(w,33);
+  w.weather='细雨';w.seed=1000;
+  assert.equal(TownTwilight.plan(w).place,'cafe');
+  assert.equal(TownTwilight.lit(w),null);
+  const root=Town.inviteTwilight(w,17);
+  assert.ok(root);assert.equal(w.tokens,2);
+  assert.equal(Town.inviteTwilight(w,2),null);
+  const copy=JSON.parse(JSON.stringify(w));
+  assert.ok(Town.valid(copy));
+  to(copy,36);
+  assert.equal(TownTwilight.lit(copy),'cafe');
+  assert.equal(copy.twilight.current.result.guest,17);
+  assert.equal(copy.events.find(e=>e.type==='twilight-meet').parent,root);
+  assert.equal(copy.twilight.cards[0].title,'一页旧河岸速写');
+  assert.ok(NPCMemory.recall(copy,17).some(m=>m.type==='twilight'));
+  const pins=TownMovement.create(copy,visualRandom(2)).pins();
+  assert.ok(pins.filter(p=>[7,17].includes(p.resident.id)).every(p=>p.indoors&&p.activity==='twilight'));
+  to(copy,48);
+  assert.equal(TownTwilight.lit(copy),null);
+  assert.equal(copy.twilight.cards.length,1);
+  assert.ok(copy.papers[0].sections.some(s=>s.label==='河畔灯笺'));
+});
+test('an evening still ends when no guest comes and lighting interpolates within a tick',()=>{
+  const w=Town.create(8);to(w,33);
+  w.weather='晴朗';w.seed=0;
+  const root=Town.inviteTwilight(w,17);
+  assert.equal(w.twilight.current.invite.die,2);
+  assert.equal(TownTwilight.destination({...w,tick:36},w.people[16],{place:'homes',activity:'read'}).place,'homes');
+  for(const id of [2,17])w.people[id-1].override={place:'homes',until:42};
+  to(w,41);
+  assert.equal(w.twilight.cards.length,0);
+  assert.equal(w.events.find(e=>e.type==='twilight-quiet').parent,root);
+  assert.equal(TownAtmosphere.light(24,0).night,0);
+  assert.ok(TownAtmosphere.light(39,.6).night>TownAtmosphere.light(39,0).night);
+  assert.ok(TownAtmosphere.light(36,0).dusk>.5);
 });
 test('wish dice preserve the resident’s hesitation on a low roll and a solo attempt on a middle roll',()=>{
   const low=Town.create(0);to(low,17);

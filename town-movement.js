@@ -9,6 +9,10 @@ const TownMovement = (() => {
     const privateActivities=new Set(['sleep','class','teach','prepare','indoorRecess']);
 
     const publicStops=(place,activity)=>TownInteriors.uses(place,activity)?TownInteriors.stops(place):TownMap.stops[place];
+    function twilightSeat(resident,place,activity){
+      if(activity!=='twilight')return null;
+      return TownAtmosphere.tables[place]?.seats[resident.id===TownTwilight.plan(world)?.host?0:1]??null;
+    }
     function pickStop(pool,walker,nearby=false){
       const neighbors=walkers.filter(other=>other!==walker);
       const free=pool.filter(point=>!neighbors.some(other=>other.stop===point));
@@ -26,7 +30,7 @@ const TownMovement = (() => {
       const activity=Town.activity(world,resident);
       const pool=publicStops(resident.place,activity);
       const stop=resident.place==='homes'?TownHomes.stops(resident.id,activity)[0]:
-        pickStop(pool)??pool[resident.id%pool.length];
+        twilightSeat(resident,resident.place,activity)??pickStop(pool)??pool[resident.id%pool.length];
       walkers.push({resident,place:resident.place,x:stop[0],y:stop[1],stop,
         activity,pace:(32+random()*14)*(TownSchool.student(resident)?.9:1),wait:random()*1.4,
         stride:random()*Math.PI*2,cooldown:0});
@@ -38,7 +42,7 @@ const TownMovement = (() => {
       const home=place==='homes';
       const points=home?TownHomes.stops(walker.resident.id,activity):publicStops(place,activity);
       const sameArea=TownInteriors.uses(place,activity)===TownInteriors.contains(place,walker.x,walker.y);
-      const stop=home?points[Math.floor(random()*points.length)]:pickStop(points,walker,local&&sameArea);
+      const stop=home?points[Math.floor(random()*points.length)]:twilightSeat(walker.resident,place,activity)??pickStop(points,walker,local&&sameArea);
       if(stop===walker.stop&&local&&sameArea){walker.wait=.45+random()*.8;return;}
       const destination=!home&&stop===walker.stop?points[walker.resident.id%points.length]:stop;
       const [x,y]=destination;
@@ -113,8 +117,8 @@ const TownMovement = (() => {
           else if(walker.activity!==activity){
             const changesRoom=TownInteriors.uses(walker.place,walker.activity)!==TownInteriors.uses(walker.place,activity);
             walker.activity=activity;
-            if(walker.place==='homes'||changesRoom)start(walker,walker.place,activity);
-          }else if(roam&&walker.wait<=0)start(walker,walker.place,activity);
+            if(walker.place==='homes'||changesRoom||activity==='twilight')start(walker,walker.place,activity);
+          }else if(roam&&walker.wait<=0&&activity!=='twilight')start(walker,walker.place,activity);
         }
         const trip=walker.journey;
         if(!trip)continue;

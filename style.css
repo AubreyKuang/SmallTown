@@ -66,6 +66,14 @@ dialog{width:min(760px,calc(100% - 24px));max-height:88vh;border:1px solid var(-
 
 /* Fit the complete town to the viewport and let the controls scroll independently. */
 .controls-panel{min-width:0}
+.twilight-entry{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:2px 8px;width:100%;border:0;border-bottom:1px solid #d9c4a0;border-radius:0;background:#ecddbd;color:#583d32;text-align:left;padding:8px 12px}
+.twilight-entry[data-lit=true]{background:#554044;color:#fff1cf}
+.twilight-entry[data-lit=true]:hover{background:#654a4d}
+.twilight-entry small{font-size:12px}
+.twilight-panel>.story-primary{justify-self:start}
+.twilight-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px;padding:0;list-style:none}
+.twilight-cards li{display:grid;gap:4px;padding:9px 11px;border:1px solid #dac8a4;border-radius:9px;background:#f6edd8;font-size:13px}
+.twilight-cards small{color:#685842}
 .resident-watch{padding:10px 12px;border-bottom:1px solid var(--line);background:#f6edd8}
 .resident-watch h2{font-size:15px}
 .watch-person{display:grid;justify-items:start;gap:5px;margin-top:7px;font-size:13px}
@@ -81,6 +89,7 @@ dialog{width:min(760px,calc(100% - 24px));max-height:88vh;border:1px solid var(-
   .controls-panel{display:flex;flex-direction:column;overflow-y:auto;border-left:1px solid #d5c6a4;scrollbar-gutter:stable}
   .controls-panel>*{flex-shrink:0}
   .controls-panel>.time-controls,.controls-panel>.resident-watch{order:-2}
+  .controls-panel>.twilight-entry{order:-2}
   .controls-panel>.dock{order:-1;grid-template-columns:minmax(0,1fr);gap:12px;padding:12px}
   .controls-panel .cards{grid-template-columns:repeat(2,minmax(0,1fr))}
   .controls-panel .fate-head{flex-wrap:wrap}

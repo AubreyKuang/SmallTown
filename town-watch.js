@@ -3,7 +3,7 @@
 const TownWatch=(()=>{
   const limit=2;
   const followups=new Set(['date-result','wish-result','moment-result','moment-favor','story-done','story-missed',
-    'reunion','couple','confess-no','bond','conflict','thanks','visitor-meeting','visitor-reunion']);
+    'reunion','couple','confess-no','bond','conflict','thanks','visitor-meeting','visitor-reunion','twilight-meet']);
   const ids=w=>w.followedResidents??[];
   function toggle(w,id){
     const selected=ids(w);
@@ -36,6 +36,10 @@ const TownWatch=(()=>{
       const plan=TownStories.planFor(story);
       if(p.id===host||p.id===story.helper)add(plan.name,story.time,story.time,plan.place);
     }
+    const twilight=TownTwilight.plan(w);
+    const current=twilight&&TownTwilight.state(w,twilight);
+    if(twilight&&!current?.result&&(twilight.host===p.id||current?.invite?.id===p.id))
+      add('河畔灯笺',twilight.at,twilight.until,twilight.place);
     return entries.sort((a,b)=>Math.max(a.at,w.tick)-Math.max(b.at,w.tick));
   }
   const developments=(events,id)=>events.filter(e=>followups.has(e.type)&&e.ids.includes(id));

@@ -142,7 +142,7 @@ canvas.addEventListener('click',event=>{
   }
 });
 function when(tick){return `第 ${Math.floor(tick/48)+1} 天 ${String(Math.floor(tick%48/2)).padStart(2,'0')}:${tick%2?'30':'00'}`;}
-const modalOpen=()=>['journal','stories','moment','rail','wish','paper','fate','thread'].some(id=>$(id).open);
+const modalOpen=()=>['journal','stories','moment','rail','wish','paper','fate','thread','twilight'].some(id=>$(id).open);
 function storyNode(tag,value,css){
   const node=document.createElement(tag);
   node.textContent=value;
@@ -163,6 +163,62 @@ function observeAt(at){
   resetCrowd();save();render();
   canvas.focus({preventScroll:true});
   canvas.scrollIntoView({block:'nearest'});
+}
+function renderTwilight(){
+  const scene=TownTwilight.plan(world),current=scene&&TownTwilight.state(world,scene);
+  const active=TownTwilight.lit(world),panel=$('twilightPanel'),entry=$('openTwilight');
+  const upcoming=scene&&world.tick<scene.until;
+  const timing=active?`灯已点亮 · ${Town.places[active].name}`:upcoming?
+    `今晚 18:00 · ${Town.places[scene.place].name}`:`下次在第 ${TownTwilight.nextDay(world)+1} 天`;
+  entry.dataset.lit=String(Boolean(active));
+  entry.replaceChildren(storyNode('strong','河畔灯笺'),storyNode('small',timing));
+  if(!$('twilight').open)return;
+  const nodes=[];
+  if(scene){
+    const host=world.people.find(p=>p.id===scene.host);
+    const place=Town.places[scene.place].name;
+    nodes.push(storyNode('p',`${when(scene.at)} · ${place} · ${scene.weather}`,'story-meta'),
+      storyNode('p',scene.prompt,'wish-thought'));
+    if(scene.weather==='细雨')nodes.push(storyNode('p','河岸在下雨，今晚把灯挪到了咖啡厅。','story-meta'));
+    if(current?.invite){
+      const guest=world.people.find(p=>p.id===current.invite.id);
+      nodes.push(storyNode('p',`给 ${guest.name} 的灯笺掷出 ${current.invite.die} 点。${current.invite.die>=3?'有空时会来。':'今晚照原来的日程走。'}`,'story-meta'));
+    }
+    if(current?.result)nodes.push(storyNode('p',current.result.text,'story-result'));
+    if(upcoming&&!current?.result&&!current?.invite){
+      nodes.push(storyNode('p',`${host.name} 会留一盏灯。有空的人可能顺路坐下。也可以花一次干预，给其中一人捎张灯笺。`));
+      const choices=storyNode('div','','story-choices');
+      for(const id of scene.guests){
+        const guest=world.people.find(p=>p.id===id);
+        const button=storyButton('',()=>{
+          const root=Town.inviteTwilight(world,id);
+          if(root){watched=root;beep();save();render();$('twilightTitle').focus();}
+        });
+        const forecast=Town.forecastPlan(world,guest,Math.max(world.tick,scene.at));
+        button.append(storyNode('strong',`捎给 ${guest.name}`),
+          storyNode('small',`按目前日程 · ${Town.places[forecast.place].name} · ${TownRoutines.labels[forecast.activity]}`));
+        button.disabled=!TownTwilight.canInvite(world,id);
+        choices.append(button);
+      }
+      nodes.push(choices);
+    }
+    if(world.tick<scene.at-1)nodes.push(storyButton('到点灯前半小时',()=>{
+      $('twilight').close();observeAt(scene.at-1);
+    },'story-primary'));
+  }else nodes.push(storyNode('p',timing,'story-meta'));
+  const cards=TownTwilight.cards(world);
+  if(cards.length){
+    const list=storyNode('ul','','twilight-cards');
+    for(const card of cards.slice().reverse()){
+      const row=storyNode('li','');
+      row.append(storyNode('strong',card.title),
+        storyNode('small',`第 ${card.day+1} 天 · ${card.weather} · ${Town.places[card.place].name}`),
+        storyNode('p',card.text));
+      list.append(row);
+    }
+    nodes.push(storyNode('h3','收藏的灯笺'),list);
+  }
+  panel.replaceChildren(...nodes);
 }
 function renderRail(){
   const {active,next,phase}=TownRail.schedule(world.tick),button=$('openRail');
@@ -478,7 +534,9 @@ function renderFollow(){
   }
   const outcome=world.events.findLast(e=>e.parent===root.id&&!['suspicion','note'].includes(e.type));
   const result=world.events.findLast(e=>e.type==='moment-favor'&&e.parent===outcome?.id)??outcome;
-  const pending=TownRipples.pendingFor(world,root.id)||world.pending.some(e=>e.parent===root.id)||TownMoments.active(world)?.root===root.id||TownWishes.activeRoot(world,root.id)||TownRelations.activeRoot(world,root.id);
+  const twilight=TownTwilight.plan(world);
+  const lantern=twilight&&TownTwilight.state(world,twilight);
+  const pending=TownRipples.pendingFor(world,root.id)||world.pending.some(e=>e.parent===root.id)||TownMoments.active(world)?.root===root.id||TownWishes.activeRoot(world,root.id)||TownRelations.activeRoot(world,root.id)||(!lantern?.result&&lantern?.invite?.root===root.id);
   const badge=document.createElement('strong');
   badge.textContent=pending?'追踪中':result?'后续':'已发生';
   text.append(badge,document.createTextNode(result?.text??root.text));
@@ -523,6 +581,7 @@ function render(){
   $('destinations').hidden=!choosingPlace;
   $('openSchool').hidden=choosingPlace;
   renderRail();
+  renderTwilight();
   if($('moment').open)renderMoment();
   if($('wish').open)renderWish();
   $('mapHint').textContent=choosingPlace?`给 ${p.name} 点一个目的地`:'点击居民打开档案';
@@ -616,6 +675,8 @@ function openRail(visitor){
 }
 $('openRail').onclick=()=>openRail();
 $('closeRail').onclick=()=>$('rail').close();
+$('openTwilight').onclick=()=>{$('twilight').showModal();renderTwilight();scheduleNext();refreshMotion();};
+$('closeTwilight').onclick=()=>$('twilight').close();
 function openResidentProfile(){
   renderWish();
   $('wish').showModal();
@@ -624,7 +685,7 @@ function openResidentProfile(){
 }
 $('openWish').onclick=openResidentProfile;
 $('closeWish').onclick=()=>$('wish').close();
-for(const id of ['journal','stories','moment','rail','wish','paper','fate','thread'])$(id).addEventListener('close',()=>{scheduleNext();refreshMotion();});
+for(const id of ['journal','stories','moment','rail','wish','paper','fate','thread','twilight'])$(id).addEventListener('close',()=>{scheduleNext();refreshMotion();});
 $('sound').onclick=async()=>{
   if(audio){await audio.close();audio=null;}else{audio=new AudioContext();await audio.resume();beep();}
   const label=audio?'关闭音效':'开启音效';

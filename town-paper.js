@@ -8,11 +8,11 @@ const TownPaper=(()=>{
     'kind-turn':'一个人悄悄变了',stargaze:'停电之夜，满天星',snowman:'今冬第一个雪人',bond:'微光镇多了一对朋友',
     crush:'有人心动了',jealous:'一束花引起的风波','confess-no':'没被接住的心意',rumor:'一句听岔了的话',
     conflict:'一笔没还上的钱','date-result':'一场约会','story-done':'镇务办成了','moment-result':'一次偶遇',
-    help:'钥匙找到了',loan:'中奖之后',umbrella:'雨里的一把伞',treat:'中奖的人请客了',reunion:'约好的再见'
+    help:'钥匙找到了',loan:'中奖之后',umbrella:'雨里的一把伞',treat:'中奖的人请客了',reunion:'约好的再见','twilight-meet':'灯笺旁的片刻'
   };
   const PRIORITY=Object.keys(HEADLINES);
   const SOCIAL=new Set(['chat','road-talk','platform','reunion','umbrella','school-recess','school-family','stargaze','treat','thanks','share']);
-  const KIND_NAMES={coin:'捡硬币',lottery:'中彩票',bus:'赶公交',lost:'丢钥匙',delay:'错过班车',visit:'改道','wish-roll':'心愿掷骰','date-die':'约会掷骰'};
+  const KIND_NAMES={coin:'捡硬币',lottery:'中彩票',bus:'赶公交',lost:'丢钥匙',delay:'错过班车',visit:'改道','wish-roll':'心愿掷骰','date-die':'约会掷骰','twilight-invite':'捎出灯笺'};
   const day=tick=>Math.floor(tick/48);
   const person=(w,id)=>w.people.find(p=>p.id===id);
   const placeName=place=>Town.places[place]?.name??'家';
@@ -107,6 +107,8 @@ const TownPaper=(()=>{
     const found=discovery(w,s);if(found)sections.push({label:'新发现',text:found});
     sections.push({label:'小镇趣闻',text:funLine(w,events,d)});
     const relation=relationLine(w,s,events);if(relation)sections.push({label:'关系变化',text:relation});
+    const twilight=events.find(e=>e.type==='twilight-meet');
+    if(twilight)sections.push({label:'河畔灯笺',text:twilight.text});
     const followed=TownWatch.daily(w,events);
     if(followed.length)sections.push({label:'关注的人 · 后来',text:followed.join('\n')});
     const notes=(w.skeptic?.notes??[]).filter(n=>n.day===d);
