@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#263e35">
 <title>上帝扔骰子 · 微光镇</title>
-<link rel="stylesheet" href="style.css?v=8">
+<link rel="stylesheet" href="style.css?v=10">
 </head>
 <body>
 <main class="game">
@@ -31,12 +31,10 @@
     </div>
     <button id="openSchool" class="school-entry" aria-label="查看学校日常">学校 ›</button>
     <button id="openRail" class="rail-entry" aria-label="查看列车时刻">列车 ›</button>
-    <button id="momentPin" class="moment-pin" hidden aria-label="查看地图偶遇">✦</button>
-    <button id="storyMarker" class="story-marker" hidden aria-label="查看镇务地点">✦</button>
-    <button id="mapStory" class="map-story" hidden><span aria-hidden="true">✦</span><span id="mapStoryText"></span><span aria-hidden="true">›</span></button>
+    <button id="mapStory" class="map-story" hidden><span id="mapStoryLabel">镇讯</span><span id="mapStoryText"></span><span aria-hidden="true">›</span></button>
   </div>
   <button id="openWish" class="wish-entry"><span aria-hidden="true">⚄</span><span id="wishPreview"></span><b>听心声 ›</b></button>
-  <button class="town-board" id="openStories"><span class="board-icon" aria-hidden="true">✦</span><span><strong id="storyButtonTitle">镇务告示</strong><small id="storyButtonDetail"></small></span><span class="board-arrow" aria-hidden="true">›</span></button>
+  <button class="town-board" id="openStories"><span class="board-icon" aria-hidden="true">▤</span><span><strong id="storyButtonTitle">镇务告示</strong><small id="storyButtonDetail"></small></span><span class="board-arrow" aria-hidden="true">›</span></button>
   <div class="dock">
     <div class="resident">
       <canvas id="portrait" width="64" height="64" aria-hidden="true"></canvas>
@@ -46,7 +44,7 @@
       <div class="fate-head"><h2>拨动命运</h2><p id="tokens"></p></div>
       <div class="cards" aria-label="选择一次干预">
         <button data-kind="coin"><span aria-hidden="true">◉</span>捡到硬币</button>
-        <button data-kind="lottery"><span aria-hidden="true">✦</span>中彩票</button>
+        <button data-kind="lottery"><span aria-hidden="true">券</span>中彩票</button>
         <button data-kind="bus"><span aria-hidden="true">↗</span>赶上公交</button>
         <button data-kind="lost"><span aria-hidden="true">◇</span>丢失钥匙</button>
         <button data-kind="delay" title="适用于尚未出发的班车乘客"><span aria-hidden="true">◷</span>错过班车</button>
@@ -82,5 +80,5 @@
   <div class="save-controls"><button id="export">导出存档</button><button id="importButton">导入存档</button><input id="import" type="file" accept="application/json,.json" hidden><label><input id="offline" type="checkbox"> 离线推进</label></div>
 </dialog>
 </main>
-<script src="npc-memory.js"></script><script src="save-manager.js"></script><script src="town-school.js"></script><script src="town-stories.js?v=5"></script><script src="town-routines.js?v=9"></script><script src="town-moments.js"></script><script src="town-rail.js"></script><script src="town-wishes.js"></script><script src="world.js?v=9"></script><script src="town-homes.js?v=5"></script><script src="town-interiors.js"></script><script src="town-art.js?v=8"></script><script src="town-map.js?v=8"></script><script src="town-movement.js?v=8"></script><script src="ui.js?v=9"></script>
+<script src="npc-memory.js"></script><script src="save-manager.js"></script><script src="town-school.js"></script><script src="town-stories.js?v=5"></script><script src="town-routines.js?v=9"></script><script src="town-moments.js"></script><script src="town-rail.js"></script><script src="town-wishes.js"></script><script src="world.js?v=9"></script><script src="town-homes.js?v=5"></script><script src="town-interiors.js"></script><script src="town-art.js?v=8"></script><script src="town-map.js?v=10"></script><script src="town-movement.js?v=8"></script><script src="ui.js?v=10"></script>
 </body></html>

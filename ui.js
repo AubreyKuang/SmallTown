@@ -185,16 +185,6 @@ function renderWish(){
   }
   panel.append(actions);
 }
-function renderMomentPin(){
-  const active=TownMoments.active(world),pin=$('momentPin');
-  pin.hidden=!active||choosingPlace;
-  if(active){
-    const scene=TownMoments.sceneFor(active);
-    const {left,top}=TownMap.marker(scene.place);
-    pin.style.left=`${left}%`;pin.style.top=`${top+5}%`;
-    pin.title=scene.title;pin.textContent=active.state==='open'?'✦':'◷';
-  }
-}
 function renderMoment(){
   const m=world.moment,panel=$('momentPanel');
   panel.replaceChildren();
@@ -237,15 +227,9 @@ function renderMoment(){
 }
 function renderBoard(){
   const active=TownStories.active(world),offer=TownStories.offer(world);
-  const marker=$('storyMarker');
-  marker.hidden=!active;
   $('storyButtonTitle').textContent=active?TownStories.planFor(active).name:offer.title;
   $('storyButtonDetail').textContent=active?`${when(active.time)} · ${Town.places[TownStories.planFor(active).place].name}`:
     `镇务告示 · 收藏 ${world.keepsakes?.length??0} / ${TownStories.total}`;
-  if(active){
-    const {left,top}=TownMap.marker(TownStories.planFor(active).place);
-    marker.style.left=`${left}%`;marker.style.top=`${top}%`;
-  }
 }
 function renderStories(){
   const panel=$('storyPanel'),active=TownStories.active(world),offer=TownStories.offer(world,schoolBoard);
@@ -385,7 +369,7 @@ function renderFollow(){
 function render(){
   const p=selected(),night=world.tick%48<12||world.tick%48>=40;
   $('clock').textContent=when(world.tick);
-  $('skyIcon').textContent=world.power?'✦':world.weather==='小雪'?'❄':world.weather==='细雨'?'☂':night?'☾':'☀';
+  $('skyIcon').textContent=world.power?'◐':world.weather==='小雪'?'❄':world.weather==='细雨'?'☂':night?'☾':'☀';
   $('skyIcon').title=world.power?'停电':world.weather;
   $('tokens').textContent=`今天还有 ${world.tokens} 次`;
   TownMap.portrait($('portrait'),p);
@@ -396,14 +380,18 @@ function render(){
   $('redirect').setAttribute('aria-expanded',String(choosingPlace));
   $('destinations').hidden=!choosingPlace;
   $('openSchool').hidden=choosingPlace;
-  renderMomentPin();
   renderRail();
   if($('moment').open)renderMoment();
   if($('wish').open)renderWish();
-  $('mapHint').textContent=choosingPlace?`给 ${p.name} 点一个目的地`:TownMoments.active(world)?'点金色标记查看偶遇':'点击地图上的居民';
+  $('mapHint').textContent=choosingPlace?`给 ${p.name} 点一个目的地`:'点击地图上的居民';
+  const moment=TownMoments.active(world);
   const latest=world.events.findLast(e=>e.type!=='town');
-  $('mapStory').hidden=!latest;
-  $('mapStoryText').textContent=latest?.text||'';
+  $('mapStory').hidden=choosingPlace||(!latest&&!moment);
+  $('mapStoryLabel').textContent=moment?.state==='open'?'偶遇':moment?'赴约':'镇讯';
+  if(moment){
+    const scene=TownMoments.sceneFor(moment);
+    $('mapStoryText').textContent=`${Town.places[scene.place].name} · ${scene.title}`;
+  }else $('mapStoryText').textContent=latest?.text||'';
   $('unread').hidden=!latest||latest.id<=seenStory;
   renderBoard();
   if($('stories').open)renderStories();
@@ -464,8 +452,7 @@ $('person').onchange=render;
 $('redirect').onclick=()=>{choosingPlace=!choosingPlace;render();};
 $('openJournal').onclick=openJournal;
 $('mapStory').onclick=()=>{
-  const latest=world.events.findLast(e=>e.type!=='town');
-  if(latest?.id===TownMoments.active(world)?.root&&latest)openMoment();
+  if(TownMoments.active(world))openMoment();
   else openJournal();
 };
 $('closeJournal').onclick=()=>$('journal').close();
@@ -474,11 +461,10 @@ function openStories(school=false){
   $('storiesTitle').textContent=school?'微光小学':'镇务告示';
   renderStories();$('stories').showModal();scheduleNext();refreshMotion();
 }
-$('openStories').onclick=$('storyMarker').onclick=()=>openStories();
+$('openStories').onclick=()=>openStories();
 $('openSchool').onclick=()=>openStories(true);
 $('closeStories').onclick=()=>$('stories').close();
 function openMoment(){renderMoment();$('moment').showModal();scheduleNext();refreshMotion();}
-$('momentPin').onclick=openMoment;
 $('closeMoment').onclick=()=>$('moment').close();
 $('openRail').onclick=()=>{$('rail').showModal();renderRail();scheduleNext();refreshMotion();};
 $('closeRail').onclick=()=>$('rail').close();

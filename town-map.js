@@ -220,10 +220,6 @@ const TownMap = (() => {
     }
     return backgrounds.get(key);
   }
-  function marker(place){
-    const {x,y}=locations[place];
-    return {left:(x+47)/9.6,top:(y+8)/6.2};
-  }
   function atmosphere(ctx,world,time,night){
     for(let i=0;i<17;i++){
       const [ax,ay]=river[i%8],[bx,by]=river[i%8+1];
@@ -286,13 +282,8 @@ const TownMap = (() => {
       ctx.fillStyle='#96684e';ctx.fillRect(x+4,y+1,3.5,4);
       line(ctx,[[x+4.6,y+1],[x+4.6,y],[x+6.2,y]],'#6a4e3b',.8);
     }
-    const moment=TownMoments.active(world);
     for(const {resident,x,y,step,indoors,activity,social,partner} of pins){
       if(indoors&&!interiors)continue;
-      if(moment&&(resident.id===moment.a||resident.id===moment.b)){
-        ctx.beginPath();ctx.ellipse(x,y+3,10+Math.sin(time/250)*1.5,5,0,0,Math.PI*2);
-        ctx.strokeStyle='#fff2ad';ctx.lineWidth=1.4;ctx.stroke();
-      }
       if(resident.id===selection)ellipse(ctx,x,y+3,indoors?7:10,indoors?4:6,'#f9d17a');
       if(social==='walk')ellipse(ctx,x,y+3,8,4,'#b7e1ca99');
       if(indoors&&activity==='sleep'&&!step){
@@ -329,5 +320,5 @@ const TownMap = (() => {
     }
     return pins;
   }
-  return { draw, stops, portrait, route, reroute, plan, position, findPlace, marker };
+  return { draw, stops, portrait, route, reroute, plan, position, findPlace };
 })();
