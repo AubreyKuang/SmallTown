@@ -1,7 +1,11 @@
 'use strict';
 const $=id=>document.getElementById(id);
 const KEY='god-dice-v1';
-let world=SaveManager.load(localStorage,KEY,Town.valid)||Town.create();
+let world=SaveManager.load(localStorage,KEY,Town.valid);
+if(!world){
+  world=Town.create();
+  while(world.tick<18)Town.step(world);
+}
 let timer=null,audio=null;
 const canvas=$('map'),ctx=canvas.getContext('2d');
 const save=()=>SaveManager.save(localStorage,KEY,{...world,savedAt:Date.now()},Town.valid);
@@ -23,44 +27,24 @@ function beep(){
   gain.gain.exponentialRampToValueAtTime(.001,audio.currentTime+.22);
   note.connect(gain).connect(audio.destination);note.start();note.stop(audio.currentTime+.23);
 }
-function paint(){
-  const night=world.tick%48<13||world.tick%48>=38;
-  ctx.fillStyle=night?'#253837':'#789267';ctx.fillRect(0,0,480,270);
-  const rect=(x,y,w,h,color)=>{ctx.fillStyle=color;ctx.fillRect(x,y,w,h);};
-  for(let i=0;i<14;i++){rect(8+i*34,0,16,270,night?'#2b403a':'#82996d');}
-  rect(0,112,480,24,night?'#4e5147':'#c6b692');rect(220,55,24,158,night?'#4e5147':'#c6b692');
-  for(let i=0;i<480;i+=12)rect(i,239+Math.floor(Math.sin(i/44)*9),12,17,night?'#395d69':'#6fa9bc');
-  for(let i=0;i<23;i++){
-    const x=16+(i*71)%136,y=157+(i*37)%67;
-    rect(x+5,y+10,3,7,'#6b4938');rect(x,y,13,12,night?'#436b50':'#446a45');
-  }
-  for(const [id,place] of Object.entries(Town.places)){
-    const {x,y}=place;
-    if(id==='square'){rect(x-26,y-20,52,42,night?'#646158':'#dac7a0');rect(x-7,y-10,14,14,'#699aa8');}
-    else if(id!=='forest'){
-      rect(x-21,y-27,42,34,'#cab48f');rect(x-25,y-34,50,12,id==='station'?'#68778a':'#985a4b');
-      rect(x-5,y-6,10,13,'#503b35');rect(x-15,y-16,7,6,world.power?'#473f38':'#f8d785');
-    }
-    ctx.fillStyle=night?'#fff4d8':'#25271f';ctx.font='11px sans-serif';ctx.textAlign='center';ctx.fillText(place.name,x,y+32);
-  }
-  const seen={};
-  for(const p of world.people){
-    const {x,y}=Town.places[p.place],i=seen[p.place]=(seen[p.place]||0)+1;
-    const xx=x-21+((i-1)%7)*7,yy=y+11+Math.floor((i-1)/7)*7;
-    if(p.id===Number($('person').value))rect(xx-2,yy-3,9,11,'#ffd987');
-    rect(xx+1,yy-2,3,3,'#efbe99');rect(xx,yy+1,5,5,['#853e49','#456c8a','#5a7d4a','#986b42'][p.id%4]);
-    if(world.power&&p.place==='square')rect(xx+5,yy+1,2,2,'#ffe6a2');
-  }
-  if(world.weather!=='晴朗')for(let i=0;i<55;i++){
-    const x=(i*137+world.tick*9)%480,y=(i*97+world.tick*11)%270;
-    rect(x,y,world.weather==='小雪'?2:1,world.weather==='小雪'?2:5,'#d5e7eb99');
-  }
-}
+let mapPins=[];
+canvas.addEventListener('click',event=>{
+  const bounds=canvas.getBoundingClientRect();
+  const x=(event.clientX-bounds.left)*canvas.width/bounds.width;
+  const y=(event.clientY-bounds.top)*canvas.height/bounds.height;
+  const closest=mapPins.reduce((best,pin)=>{
+    const distance=Math.hypot(x-pin.x,y-pin.y+4);
+    return distance<best.distance?{pin,distance}:best;
+  },{pin:null,distance:42});
+  if(closest.pin){$('person').value=closest.pin.resident.id;render();}
+});
 function when(tick){return `第 ${Math.floor(tick/48)+1} 天 ${String(Math.floor(tick%48/2)).padStart(2,'0')}:${tick%2?'30':'00'}`;}
 function render(){
   $('clock').textContent=`${when(world.tick)} · ${world.weather}${world.power?' · 停电':''}`;
-  $('tokens').textContent=`今日可拨动 ${world.tokens} 次`;
+  $('tokens').textContent=`剩余 ${world.tokens} 次`;
   const p=world.people.find(person=>person.id===Number($('person').value))||world.people[0];
+  $('portrait').textContent=p.name.slice(0,1);
+  $('portrait').style.setProperty('--portrait',TownMap.color(p.id));
   $('bio').textContent=`${Town.places[p.place].name} · 心情 ${p.mood} · ${p.money} 元${p.questioned?' · 开始怀疑巧合':''}`;
   const list=$('events');list.replaceChildren();
   for(const e of world.events.slice(-14).reverse()){
@@ -70,12 +54,19 @@ function render(){
     while(parent&&causes.length<5){const event=world.events.find(item=>item.id===parent);if(!event)break;causes.unshift(event.text);parent=event.parent;}
     sub.textContent=when(e.tick)+(causes.length?' · 起因：'+causes.join(' → '):'');row.append(sub);list.append(row);
   }
+  if(!world.events.length){
+    const row=document.createElement('li');row.textContent='小镇还很安静。推进时间，或拨动一位居民的命运。';list.append(row);
+  }
   $('memories').replaceChildren();
-  for(const e of NPCMemory.recall(world,p.id).slice(0,8)){
+  const memories=NPCMemory.recall(world,p.id).slice(0,8);
+  if(!memories.length){
+    const item=document.createElement('li');item.textContent='目前没有可回顾的经历。';$('memories').append(item);
+  }
+  for(const e of memories){
     const item=document.createElement('li');item.textContent=e.interpretation;$('memories').append(item);
   }
   document.querySelectorAll('[data-kind]').forEach(button=>button.disabled=world.tokens<=0||(button.dataset.kind==='delay'&&(world.tick%48<14||world.tick%48>=18)));
-  paint();
+  mapPins=TownMap.draw(ctx,world,p.id,canvas.clientWidth);
 }
 function advance(){Town.step(world);save();render();}
 $('step').onclick=advance;
@@ -104,5 +95,6 @@ $('import').onchange=async event=>{
   }catch{$('notice').textContent='存档无效或无法写入。';}
   finally{event.target.value='';}
 };
+window.addEventListener('resize',()=>{mapPins=TownMap.draw(ctx,world,Number($('person').value),canvas.clientWidth);});
 window.addEventListener('pagehide',save);
 save();render();
