@@ -9,9 +9,11 @@ if(isNew){
   world=Town.create();
   while(world.tick<17)Town.step(world);
 }
+Town.upgrade(world);
 let timer=null,audio=null,running=false,fast=false,choosingPlace=false,frame=null;
 let lastFrame=null,manualUntil=0;
 let draftPlan=0,draftHelper=null,shownOffer=-1;
+let schoolBoard=false;
 let interiors=localStorage.getItem(KEY+':interiors')!=='off';
 let crowd=TownMovement.create(world),mapPins=crowd.pins();
 let seenStory=world.sequence;
@@ -116,14 +118,14 @@ function renderBoard(){
   marker.hidden=!active;
   $('storyButtonTitle').textContent=active?TownStories.planFor(active).name:offer.title;
   $('storyButtonDetail').textContent=active?`${when(active.time)} · ${Town.places[TownStories.planFor(active).place].name}`:
-    `镇务告示 · 收藏 ${world.keepsakes?.length??0} / 6`;
+    `镇务告示 · 收藏 ${world.keepsakes?.length??0} / ${TownStories.total}`;
   if(active){
     const {left,top}=TownMap.marker(TownStories.planFor(active).place);
     marker.style.left=`${left}%`;marker.style.top=`${top}%`;
   }
 }
 function renderStories(){
-  const panel=$('storyPanel'),active=TownStories.active(world),offer=TownStories.offer(world);
+  const panel=$('storyPanel'),active=TownStories.active(world),offer=TownStories.offer(world,schoolBoard);
   panel.replaceChildren();
   if(active){
     const plan=TownStories.planFor(active),helper=world.people.find(p=>p.id===active.helper);
@@ -157,7 +159,8 @@ function renderStories(){
     const today=Math.floor(world.tick/48);
     if(past?.day===today){panel.append(storyNode('p','明天再来查看新的告示。'));}
     else{
-      if(shownOffer!==today){shownOffer=today;draftPlan=0;draftHelper=null;}
+      const offerKey=today*2+Number(schoolBoard);
+      if(shownOffer!==offerKey){shownOffer=offerKey;draftPlan=0;draftHelper=null;}
       panel.append(storyNode('h3',offer.title),storyNode('p',offer.intro));
       const choices=storyNode('div','','story-choices');
       const requirements={bakery:'面包店员工',market:'商业街员工',station:'车站员工',generous:'热心的居民'};
@@ -170,9 +173,9 @@ function renderStories(){
       });
       panel.append(choices);
       const proposal={story:offer.index,plan:draftPlan};
-      const deadline=(today+1)*48+35;
+      const deadline=offer.deadline;
       const venue=TownStories.planFor(proposal).place;
-      const candidates=world.people.filter(p=>p.id!==offer.host).map(p=>({p,
+      const candidates=world.people.filter(p=>p.id!==offer.host&&!TownSchool.student(p)).map(p=>({p,
         willing:TownStories.eligible(world,proposal,p),there:Town.forecast(world,p,deadline)===venue}));
       candidates.sort((a,b)=>Number(b.willing)*2+Number(b.there)-Number(a.willing)*2-Number(a.there));
       const label=storyNode('label','选择搭档');label.htmlFor='storyHelper';
@@ -181,14 +184,23 @@ function renderStories(){
       if(draftHelper!==null)select.value=draftHelper;
       select.onchange=()=>{draftHelper=Number(select.value);};
       const start=storyButton('开始筹备',()=>{
-        if(Town.startStory(world,draftPlan,Number(select.value))){save();render();$('storyPanel').querySelector('h3').focus();}
+        if(Town.startStory(world,draftPlan,Number(select.value),schoolBoard)){save();render();$('storyPanel').querySelector('h3').focus();}
       },'story-primary');
       const actions=storyNode('div','','story-actions');actions.append(label,select,start);
       panel.append(storyNode('p',`${when(deadline)} · ${Town.places[venue].name}`,'story-meta'),actions);
     }
   }
+  if(schoolBoard){
+    const roster=storyNode('div','','school-roster');
+    for(const p of world.people.filter(p=>p.id>=TownSchool.teacher)){
+      roster.append(storyButton(`${p.name} · ${TownRoutines.labels[Town.activity(world,p)]}`,()=>{
+        $('person').value=p.id;$('stories').close();render();
+      }));
+    }
+    panel.append(storyNode('p','点击查看老师和学生','story-meta'),roster);
+  }
   const collection=(world.keepsakes??[]).map(key=>TownStories.stories[Math.floor(key/2)].plans[key%2].keepsake);
-  panel.append(storyNode('p',collection.length?`小镇收藏 ${collection.length} / 6 · ${collection.join('、')}`:'小镇收藏 0 / 6','story-collection'));
+  panel.append(storyNode('p',`小镇收藏 ${collection.length} / ${TownStories.total}${collection.length?` · ${collection.join('、')}`:''}`,'story-collection'));
 }
 function describeCauses(event){
   const causes=[];
@@ -248,11 +260,12 @@ function render(){
   $('skyIcon').title=world.power?'停电':world.weather;
   $('tokens').textContent=`今天还有 ${world.tokens} 次`;
   TownMap.portrait($('portrait'),p);
-  document.querySelectorAll('[data-kind]').forEach(button=>button.disabled=world.tokens<=0||(button.dataset.kind==='delay'&&!Town.canDelay(world,p)));
+  document.querySelectorAll('[data-kind]').forEach(button=>button.disabled=!Town.canAct(world,p,button.dataset.kind));
   if(world.tokens<=0)choosingPlace=false;
   $('redirect').disabled=world.tokens<=0;
   $('redirect').setAttribute('aria-expanded',String(choosingPlace));
   $('destinations').hidden=!choosingPlace;
+  $('openSchool').hidden=choosingPlace;
   $('mapHint').textContent=choosingPlace?`给 ${p.name} 点一个目的地`:'点击地图上的居民';
   const latest=world.events.findLast(e=>e.type!=='town');
   $('mapStory').hidden=!latest;
@@ -316,10 +329,13 @@ $('person').onchange=render;
 $('redirect').onclick=()=>{choosingPlace=!choosingPlace;render();};
 $('openJournal').onclick=$('mapStory').onclick=openJournal;
 $('closeJournal').onclick=()=>$('journal').close();
-function openStories(){
+function openStories(school=false){
+  schoolBoard=school;
+  $('storiesTitle').textContent=school?'微光小学':'镇务告示';
   renderStories();$('stories').showModal();scheduleNext();refreshMotion();
 }
-$('openStories').onclick=$('storyMarker').onclick=openStories;
+$('openStories').onclick=$('storyMarker').onclick=()=>openStories();
+$('openSchool').onclick=()=>openStories(true);
 $('closeStories').onclick=()=>$('stories').close();
 for(const id of ['journal','stories'])$(id).addEventListener('close',()=>{scheduleNext();refreshMotion();});
 $('sound').onclick=async()=>{
@@ -341,6 +357,7 @@ $('import').onchange=async event=>{
     const file=event.target.files[0];if(!file)return;
     const data=JSON.parse(await file.text());
     if(!Town.valid(data))throw new Error();
+    Town.upgrade(data);
     const newWatch=Number.isInteger(data.watchedEvent)?data.watchedEvent:null;
     if(!SaveManager.save(localStorage,KEY,{...data,savedAt:Date.now()},Town.valid))throw new Error();
     world=data;watched=newWatch;seenStory=world.sequence;choosingPlace=false;

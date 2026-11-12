@@ -7,7 +7,7 @@ const TownHomes=(()=>{
     {x:108,y:211,w:87,base:275,edge:'#89565d',path:[[151,280],[149,314]]},
     {x:216,y:211,w:81,base:281,edge:'#7d6a84',path:[[260,285],[259,315]]}
   ];
-  const house=id=>buildings[Math.floor((id-1)/6)];
+  const house=id=>buildings[Math.floor((TownSchool.household(id)-1)/6)];
   const inside=(b,x,y)=>x>=b.x+1&&x<=b.x+b.w-1&&y>=b.y+12&&y<=b.base;
   const rooms=buildings.flatMap(building=>Array.from({length:6},(_,index)=>{
     const width=(building.w-10)/3;
@@ -17,8 +17,16 @@ const TownHomes=(()=>{
     return {left,width,floor,rest:[[x-3,floor-5],[x+2,floor-5]],sleep:[[left+6,floor-8]],
       read:[[left+width-6,floor-7]],food:[[x+4,floor-6],[x-1,floor-6]]};
   }));
-  const room=id=>rooms[id-1];
+  const room=id=>rooms[TownSchool.household(id)-1];
+  const shared=new Map(TownSchool.roster.map(({id})=>{
+    const {left,width,floor}=room(id);
+    return [id,{bed:[[left+16,floor-14]],desk:[[left+width-7,floor-13]],rest:[[left+13,floor-12],[left+9,floor-13]]}];
+  }));
   function stops(id,activity){
+    if(shared.has(id)){
+      const space=shared.get(id);
+      return activity==='sleep'?space.bed:['read','homework'].includes(activity)?space.desk:space.rest;
+    }
     const space=room(id);
     if(activity==='sleep')return space.sleep;
     if(activity==='read')return space.read;
@@ -54,6 +62,9 @@ const TownHomes=(()=>{
         box(left+1,floor-14,10,11,'#967051');
         box(left+2,floor-13,8,8,['#93a7b4','#c78478','#a4ab70'][index%3]);
         box(left+3,floor-13,6,3,'#f7eed0');
+        if(TownSchool.roster.some(member=>member.family===index*6+i+1)){
+          box(left+12,floor-19,8,5,'#9d8264');box(left+13,floor-18,6,3,'#dbc387');
+        }
         const tx=left+width-10;
         box(tx,floor-12,8,8,'#a27856');
         box(tx-1,floor-13,10,2,'#c29a6d');

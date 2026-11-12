@@ -2,8 +2,8 @@ const assert = require('node:assert/strict');
 const {test} = require('node:test');
 const {readFileSync} = require('node:fs');
 const vm = require('node:vm');
-const source=['npc-memory.js','save-manager.js','town-stories.js','town-routines.js','world.js','town-homes.js','town-map.js','town-movement.js'].map(name=>readFileSync(require('node:path').join(__dirname,'..',name),'utf8')).join('\n');
-const {Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes}=vm.runInNewContext(source+'\n({Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes})');
+const source=['npc-memory.js','save-manager.js','town-school.js','town-stories.js','town-routines.js','world.js','town-homes.js','town-map.js','town-movement.js'].map(name=>readFileSync(require('node:path').join(__dirname,'..',name),'utf8')).join('\n');
+const {Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool}=vm.runInNewContext(source+'\n({Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool})');
 function to(w,t){while(w.tick<t)Town.step(w);}
 function visualRandom(seed){
   return ()=>{
@@ -54,10 +54,10 @@ test('residents roam at different times and have distinct stops without advancin
   const snapshot=JSON.stringify(w);
   const crowd=TownMovement.create(w,visualRandom(3));
   const before=new Map(crowd.pins().map(pin=>[pin.resident.id,pin]));
-  assert.equal(new Set(crowd.pins().map(pin=>`${pin.x},${pin.y}`)).size,24);
+  assert.equal(new Set(crowd.pins().map(pin=>`${pin.x},${pin.y}`)).size,w.people.length);
   for(let i=0;i<14;i++)crowd.advance(.05);
   const moved=crowd.pins().filter(pin=>pin.x!==before.get(pin.resident.id).x||pin.y!==before.get(pin.resident.id).y);
-  assert.ok(moved.length>0&&moved.length<24);
+  assert.ok(moved.length>0&&moved.length<w.people.length);
   for(let i=0;i<100;i++)crowd.advance(.05);
   assert.ok(crowd.pins().some(pin=>pin.x!==before.get(pin.resident.id).x||pin.y!==before.get(pin.resident.id).y));
   assert.equal(JSON.stringify(w),snapshot);
@@ -65,7 +65,7 @@ test('residents roam at different times and have distinct stops without advancin
 test('home residents have their own rooms, and sleeping stays stationary',()=>{
   const w=Town.create(8),crowd=TownMovement.create(w,visualRandom(3));
   const before=crowd.pins();
-  assert.equal(new Set(before.map(pin=>`${pin.x},${pin.y}`)).size,24);
+  assert.equal(new Set(before.map(pin=>`${pin.x},${pin.y}`)).size,w.people.length);
   assert.ok(before.every(pin=>pin.indoors&&pin.activity==='sleep'));
   for(let i=0;i<100;i++)crowd.advance(.05);
   assert.deepEqual(crowd.pins(),before);
@@ -100,7 +100,44 @@ test('residents share a location for unprompted conversations and remember their
   assert.equal(a.place,b.place);
   assert.match(NPCMemory.recall(w,a.id)[0].interpretation,new RegExp(b.name));
   assert.match(NPCMemory.recall(w,b.id)[0].interpretation,new RegExp(a.name));
-  assert.ok(w.people.filter(p=>!chat.ids.includes(p.id)).every(p=>NPCMemory.recall(w,p.id).length===0));
+  assert.ok(w.people.filter(p=>!chat.ids.includes(p.id)).every(p=>
+    NPCMemory.recall(w,p.id).every(memory=>memory.type!=='chat')));
+});
+test('legacy towns gain the school roster exactly once and keep their progress',()=>{
+  const legacy=Town.create(8);to(legacy,18);
+  legacy.people=legacy.people.slice(0,24);
+  legacy.people[0].money=75;
+  assert.ok(Town.valid(legacy));
+  Town.upgrade(legacy);Town.upgrade(legacy);
+  assert.equal(legacy.people.length,29);
+  assert.equal(legacy.people[0].money,75);
+  assert.equal(legacy.tick,18);
+  assert.ok(legacy.people.filter(TownSchool.student).every(p=>p.place==='school'));
+  assert.ok(Town.valid(legacy));
+});
+test('students attend class, move recess indoors in rain, and leave for different activities',()=>{
+  const sunny=Town.create(8);to(sunny,18);
+  assert.ok(sunny.people.filter(TownSchool.student).every(p=>p.activity==='class'));
+  const rain=JSON.parse(JSON.stringify(sunny));rain.weather='细雨';
+  to(sunny,22);to(rain,22);
+  assert.ok(sunny.people.filter(TownSchool.student).every(p=>p.place==='schoolyard'));
+  assert.ok(rain.people.filter(TownSchool.student).every(p=>p.place==='school'&&p.activity==='indoorRecess'));
+  const recess=sunny.events.find(e=>e.type==='school-recess');
+  assert.ok(recess.ids.every(id=>NPCMemory.recall(sunny,id).some(memory=>memory.type==='school-recess')));
+  to(sunny,30);
+  const children=sunny.people.filter(TownSchool.student);
+  assert.ok(children.some(p=>p.activity==='homework'));
+  assert.ok(children.some(p=>p.activity==='play'));
+  assert.ok(children.some(p=>p.activity==='recess'));
+  assert.equal(Town.influence(sunny,children[0].id,'lottery'),false);
+  to(sunny,5*48+18);
+  assert.ok(sunny.people.filter(TownSchool.student).every(p=>p.activity!=='class'));
+});
+test('school improvements change later recess activities',()=>{
+  const garden=Town.create(8);garden.keepsakes=[6];to(garden,22);
+  assert.match(garden.events.find(e=>e.type==='school-recess').text,/给新花坛浇水/);
+  const books=Town.create(8);books.keepsakes=[7];books.weather='细雨';to(books,22);
+  assert.match(books.events.find(e=>e.type==='school-recess').text,/从故事书架抽出一本书/);
 });
 test('missing a bus delays arrival relative to the resident’s own shift',()=>{
   const w=Town.create(8);to(w,15);
@@ -183,12 +220,12 @@ test('attendance and relationships affect outcomes, and a timely redirect comple
   assert.match(distrust.events.find(e=>e.type==='story-missed').text,/到了现场，还是没答应帮忙/);
   assert.equal(TownStories.offer(distrust).title,'没写地址的包裹');
 });
-test('the six project plans can each unlock their own collectible',()=>{
+test('each town and school plan can unlock its own collectible',()=>{
   for(let day=0;day<TownStories.stories.length;day++){
     for(let plan=0;plan<2;plan++){
       const w=Town.create(18);to(w,day*48+15);
       const helper=w.people.find(p=>TownStories.eligible(w,{story:day,plan},p));
-      assert.ok(Town.startStory(w,plan,helper.id));
+      assert.ok(Town.startStory(w,plan,helper.id,day===3));
       assert.ok(Town.inviteStory(w));
       to(w,w.townStory.time);
       assert.equal(w.townStory.result,'done');

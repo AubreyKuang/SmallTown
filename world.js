@@ -4,13 +4,23 @@ const Town = (() => {
     homes:{name:'居民区',x:90,y:86}, bakery:{name:'面包店',x:200,y:85},
     cafe:{name:'咖啡厅',x:270,y:86}, market:{name:'商业街',x:345,y:83},
     square:{name:'中央广场',x:232,y:182}, station:{name:'火车站',x:422,y:190},
-    forest:{name:'树林',x:92,y:213}
+    forest:{name:'树林',x:92,y:213}, school:{name:'微光小学'}, schoolyard:{name:'学校操场'}
   };
+  const residentDefaults={place:'homes',money:20,mood:65,suspicion:0,override:null,delay:0};
+  const population=names.length+TownSchool.roster.length;
+  function upgrade(w){
+    if(w.people.length===population)return w;
+    for(const {id,name,job,habit,temperament} of TownSchool.roster){
+      const p={...residentDefaults,id,name,job,habit,temperament,trust:{}};
+      Object.assign(p,schedule(w,p));
+      w.people.push(p);
+    }
+    return w;
+  }
   function create(seed = Date.now()) {
-    return {seed:seed>>>0,tick:0,weather:'晴朗',power:false,sequence:0,events:[],pending:[],tokens:3,
-      people:names.map((name,i)=>({id:i+1,name,place:'homes',job:['bakery','market','station'][i%3],
-        habit:i%4===0||i===1?'cafe':i%4===2?'forest':'square', temperament:i===2?'skeptic':i%3===0?'generous':'practical',
-        money:20,mood:65,suspicion:0,trust:{}, override:null,delay:0}))};
+    return upgrade({seed:seed>>>0,tick:0,weather:'晴朗',power:false,sequence:0,events:[],pending:[],tokens:3,
+      people:names.map((name,i)=>({...residentDefaults,id:i+1,name,job:['bakery','market','station'][i%3],
+        habit:i%4===0||i===1?'cafe':i%4===2?'forest':'square', temperament:i===2?'skeptic':i%3===0?'generous':'practical',trust:{}}))});
   }
   function random(w) {
     w.seed=(Math.imul(w.seed,1664525)+1013904223)>>>0;
@@ -45,6 +55,8 @@ const Town = (() => {
     if(p.override?.until>w.tick)return {place:p.override.place,activity:p.override.place==='station'&&p.override.bus?'commute':'visit'};
     const project=TownStories.destination(w,p);
     if(project)return {place:project,activity:'project'};
+    const school=TownSchool.routine(w,p);
+    if(school)return school;
     if(w.power&&(p.id%5===0||p.id%7===0)&&h>=19+(p.id%3)*.5&&h<21+(p.id%2)*.5)return {place:'square',activity:'stars'};
     return TownRoutines.daily(w,p);
   }
@@ -53,9 +65,12 @@ const Town = (() => {
     const planned=schedule(w,p);
     return planned.place===p.place?planned.activity:p.place==='homes'?'rest':p.job===p.place?'work':'visit';
   }
+  const canAct=(w,p,kind)=>w.tokens>0&&
+    (kind!=='delay'||p.id<TownSchool.teacher&&TownRoutines.canDelay(w,p))&&
+    (!TownSchool.student(p)||!['bus','lottery'].includes(kind));
   function influence(w,id,kind,place) {
     const p=w.people.find(person=>person.id===id);
-    if(!p||(kind==='delay'&&!TownRoutines.canDelay(w,p))||w.tokens<=0||!['delay','lost','coin','bus','lottery','visit'].includes(kind)||(kind==='visit'&&!Object.hasOwn(places,place)))return false;
+    if(!p||!canAct(w,p,kind)||!['delay','lost','coin','bus','lottery','visit'].includes(kind)||(kind==='visit'&&!Object.hasOwn(places,place)))return false;
     w.tokens--;
     p.suspicion+=p.temperament==='skeptic'?2:1;
     let parent;
@@ -105,7 +120,7 @@ const Town = (() => {
     const peers=w.people.filter(other=>other!==p&&other.place===p.place&&other.place!=='homes');
     const candidate=peers.find(other=>entry.kind==='meeting'
       ? !(other.override?.until>w.tick)
-      : entry.kind==='loan'||other.temperament==='generous');
+      : entry.kind==='loan'?!TownSchool.student(other):other.temperament==='generous');
     if(!candidate||(entry.place&&p.place!==entry.place)){
       if(w.tick<entry.until)return false;
       const text=entry.kind==='meeting'?`${p.name} 在${places[entry.place].name}待了一会儿，没遇到熟面孔。`:
@@ -164,17 +179,18 @@ const Town = (() => {
     }
     w.pending=w.pending.filter(entry=>w.tick<entry.at||!resolve(w,entry));
     if(hour>=22&&hour<43&&((w.seed>>>4)+w.tick*3)%7===0)localEncounter(w);
+    TownSchool.encounter(w,(...args)=>log(w,...args),(...args)=>memory(w,...args));
     if(TownStories.active(w))TownStories.settle(w,(...args)=>log(w,...args),(...args)=>memory(w,...args));
     return w;
   }
   const valid=w=>Number.isInteger(w.tick)&&w.tick>=0&&Number.isInteger(w.seed)&&Array.isArray(w.events)
-    &&Array.isArray(w.people)&&w.people.length===names.length&&w.people.every(p=>Number.isInteger(p.id)&&p.id>0&&p.id<=names.length&&Object.hasOwn(places,p.place))
-    &&new Set(w.people.map(p=>p.id)).size===names.length
+    &&Array.isArray(w.people)&&[names.length,population].includes(w.people.length)&&w.people.every(p=>Number.isInteger(p.id)&&p.id>0&&p.id<=w.people.length&&Object.hasOwn(places,p.place))
+    &&new Set(w.people.map(p=>p.id)).size===w.people.length
     &&w.people.every(p=>Object.hasOwn(places,p.job)&&Object.hasOwn(places,p.habit)&&p.trust&&typeof p.trust==='object')
     &&Array.isArray(w.pending)&&w.pending.every(p=>['late','help','meeting','loan'].includes(p.kind)&&w.people.some(person=>person.id===p.person))
     &&Number.isInteger(w.sequence)&&Number.isInteger(w.tokens)&&w.tokens>=0&&w.tokens<=3&&TownStories.valid(w);
-  const startStory=(w,plan,helper)=>TownStories.start(w,plan,helper,(...args)=>log(w,...args));
+  const startStory=(w,plan,helper,school)=>TownStories.start(w,plan,helper,(...args)=>log(w,...args),school);
   const inviteStory=w=>TownStories.invite(w,(...args)=>log(w,...args));
   const forecast=(w,p,tick)=>schedule({...w,tick,power:tick-w.tick<4&&w.power},p).place;
-  return {create,step,influence,places,valid,startStory,inviteStory,forecast,activity,canDelay:TownRoutines.canDelay};
+  return {create,step,influence,places,valid,startStory,inviteStory,forecast,activity,canAct,upgrade};
 })();

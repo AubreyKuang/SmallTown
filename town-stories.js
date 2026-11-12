@@ -10,24 +10,33 @@ const TownStories=(()=>{
       {name:'咖啡厅招领',place:'cafe',skill:'generous',description:'请一位热心的居民在咖啡厅帮忙接待。',keepsake:'手写招领牌',result:'失主在咖啡厅认出了包裹，留下了一张亲笔道谢的卡片。'}]},
     {title:'河岸的纪念',intro:'Iris 找到一张老照片，想把当年的河岸故事留在镇上。',host:7,plans:[
       {name:'树林故事牌',place:'forest',skill:'generous',description:'请人一起选一处林间小径，把故事写到木牌上。',keepsake:'林间故事牌',result:'两人立好木牌，后来散步的人也能读到那张照片的来历。'},
-      {name:'广场照片墙',place:'square',skill:'market',description:'请熟悉商街的居民筹措相框，在广场展出。',keepsake:'老照片墙',result:'广场挂上第一张照片，几个邻居也答应带来自己的旧相片。'}]}
+      {name:'广场照片墙',place:'square',skill:'market',description:'请熟悉商街的居民筹措相框，在广场展出。',keepsake:'老照片墙',result:'广场挂上第一张照片，几个邻居也答应带来自己的旧相片。'}]},
+    {title:'放学后的小约定',intro:'Marin 想在放学后留一个角落，让愿意留下的孩子一起做点东西。',host:TownSchool.teacher,plans:[
+      {name:'操场观察角',place:'schoolyard',skill:'market',description:'请商街的居民找来花盆和种子，在操场边做一个观察角。',keepsake:'校园观察花坛',result:'孩子们把自己认得的花草画到标签上，插在了新花坛里。'},
+      {name:'教室故事会',place:'school',skill:'generous',description:'找一位热心邻居来读故事，孩子们轮流给故事接一个结尾。',keepsake:'校园故事书架',result:'教室添了一个故事书架，孩子们留下了各自写的结尾。'}]}
   ];
+  const schoolIndex=stories.length-1;
+  const total=stories.length*2;
   const day=w=>Math.floor(w.tick/48);
+  const deadline=(day,index)=>(day+1)*48+(index===schoolIndex?31:35);
   const active=w=>w.townStory?.result===null?w.townStory:null;
   const resident=(w,id)=>w.people.find(person=>person.id===id);
   const planFor=story=>stories[story.story].plans[story.plan];
-  const offer=w=>({index:day(w)%stories.length,...stories[day(w)%stories.length]});
+  const offer=(w,school=false)=>{
+    const index=school?schoolIndex:day(w)%schoolIndex;
+    return {index,...stories[index],deadline:deadline(day(w),index)};
+  };
   function eligible(w,story,helper){
     const host=resident(w,stories[story.story].host);
-    if(!helper||helper===host)return false;
+    if(!helper||helper===host||TownSchool.student(helper))return false;
     const skill=planFor(story).skill;
     const trust=(helper.trust[host.id]||0)+NPCMemory.influence(w,helper.id,host.id)*10;
     return trust>=-8&&(helper.job===skill||helper.temperament===skill||trust>=7);
   }
-  function start(w,plan,helperId,log){
-    const choice=offer(w),helper=resident(w,helperId);
-    if(active(w)||w.townStory?.day===day(w)||!Number.isInteger(plan)||!choice.plans[plan]||!helper||helper.id===choice.host)return false;
-    const time=(day(w)+1)*48+35;
+  function start(w,plan,helperId,log,school){
+    const choice=offer(w,school),helper=resident(w,helperId);
+    if(active(w)||w.townStory?.day===day(w)||!Number.isInteger(plan)||!choice.plans[plan]||!helper||helper.id===choice.host||TownSchool.student(helper))return false;
+    const time=choice.deadline;
     const story={story:choice.index,plan,helper:helperId,day:day(w),time,invited:false,result:null};
     story.root=log(`${resident(w,choice.host).name} 决定筹备「${choice.plans[plan].name}」，想请 ${helper.name} 搭把手。`,null,'story-start',[choice.host,helperId]);
     w.townStory=story;
@@ -45,6 +54,7 @@ const TownStories=(()=>{
     const story=w.townStory;
     if(!story||w.tick<story.time-2||w.tick>story.time+1||story.result==='missed')return;
     if(p.id===stories[story.story].host||(story.invited&&p.id===story.helper))return planFor(story).place;
+    if(story.story===schoolIndex&&story.result==='done'&&TownSchool.student(p)&&(p.id+story.day)%2===0)return planFor(story).place;
   }
   function settle(w,log,remember){
     const story=active(w);
@@ -68,10 +78,10 @@ const TownStories=(()=>{
   function valid(w){
     const s=w.townStory;
     const validStory=s==null||(Number.isInteger(s.story)&&Number.isInteger(s.plan)&&Number.isInteger(s.day)&&s.day>=0&&
-      stories[s.story]?.plans[s.plan]&&s.story===s.day%stories.length&&s.time===(s.day+1)*48+35&&s.day<=day(w)&&resident(w,s.helper)&&s.helper!==stories[s.story].host&&
+      stories[s.story]?.plans[s.plan]&&(s.story===schoolIndex||s.story===s.day%schoolIndex)&&s.time===deadline(s.day,s.story)&&s.day<=day(w)&&resident(w,s.helper)&&s.helper!==stories[s.story].host&&
       Number.isInteger(s.root)&&s.root>0&&s.root<=w.sequence&&typeof s.invited==='boolean'&&[null,'done','missed'].includes(s.result));
     return validStory&&(w.keepsakes==null||(Array.isArray(w.keepsakes)&&new Set(w.keepsakes).size===w.keepsakes.length&&
-      w.keepsakes.every(key=>Number.isInteger(key)&&key>=0&&key<stories.length*2)));
+      w.keepsakes.every(key=>Number.isInteger(key)&&key>=0&&key<total)));
   }
-  return {stories,offer,active,planFor,eligible,start,invite,destination,settle,valid};
+  return {stories,offer,active,planFor,eligible,start,invite,destination,settle,valid,total};
 })();
