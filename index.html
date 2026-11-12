@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#263e35">
 <title>上帝扔骰子 · 微光镇</title>
-<link rel="stylesheet" href="style.css?v=11">
+<link rel="stylesheet" href="style.css?v=13">
 </head>
 <body>
 <main class="game">
@@ -21,7 +21,7 @@
   <div class="map-frame">
     <canvas id="map" width="960" height="620" aria-label="微光镇地图，点击居民查看详情"></canvas>
     <div class="map-top">
-      <p class="map-hint" id="mapHint">点击地图上的居民</p>
+      <p class="map-hint" id="mapHint">点击居民打开档案</p>
       <div class="time-controls" aria-label="地图与时间控制">
         <button id="homeView" aria-pressed="true" title="切换全镇建筑剖面">屋内</button>
         <button id="auto" aria-pressed="false" aria-label="继续时间" title="继续时间">▶</button>
@@ -31,8 +31,8 @@
     </div>
     <button id="openSchool" class="school-entry" aria-label="查看学校日常">学校 ›</button>
     <button id="openRail" class="rail-entry" aria-label="查看列车时刻">列车 ›</button>
-    <button id="mapStory" class="map-story" hidden><span id="mapStoryLabel">镇讯</span><span id="mapStoryText"></span><span aria-hidden="true">›</span></button>
   </div>
+  <button id="mapStory" class="map-story" hidden><span id="mapStoryLabel">镇讯</span><span id="mapStoryText"></span><span aria-hidden="true">›</span></button>
   <button id="openWish" class="wish-entry"><span aria-hidden="true">⚄</span><span id="wishPreview"></span><b>人物档案 ›</b></button>
   <button class="town-board" id="openStories"><span class="board-icon" aria-hidden="true">▤</span><span><strong id="storyButtonTitle">镇务告示</strong><small id="storyButtonDetail"></small></span><span class="board-arrow" aria-hidden="true">›</span></button>
   <div class="dock">
@@ -80,5 +80,5 @@
   <div class="save-controls"><button id="export">导出存档</button><button id="importButton">导入存档</button><input id="import" type="file" accept="application/json,.json" hidden><label><input id="offline" type="checkbox"> 离线推进</label></div>
 </dialog>
 </main>
-<script src="npc-memory.js"></script><script src="save-manager.js"></script><script src="town-school.js"></script><script src="town-stories.js?v=5"></script><script src="town-routines.js?v=11"></script><script src="town-moments.js"></script><script src="town-rail.js"></script><script src="town-wishes.js"></script><script src="town-relations.js"></script><script src="world.js?v=11"></script><script src="town-homes.js?v=5"></script><script src="town-interiors.js"></script><script src="town-art.js?v=8"></script><script src="town-map.js?v=10"></script><script src="town-movement.js?v=8"></script><script src="ui.js?v=11"></script>
+<script src="npc-memory.js"></script><script src="save-manager.js"></script><script src="town-school.js"></script><script src="town-stories.js?v=5"></script><script src="town-routines.js?v=11"></script><script src="town-moments.js"></script><script src="town-rail.js"></script><script src="town-wishes.js"></script><script src="town-relations.js"></script><script src="world.js?v=11"></script><script src="town-homes.js?v=5"></script><script src="town-interiors.js"></script><script src="town-art.js?v=8"></script><script src="town-map.js?v=10"></script><script src="town-movement.js?v=8"></script><script src="ui.js?v=13"></script>
 </body></html>

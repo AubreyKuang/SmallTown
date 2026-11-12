@@ -116,7 +116,11 @@ canvas.addEventListener('click',event=>{
     const distance=Math.hypot(x-pin.x,y-pin.y+4);
     return distance<best.distance?{pin,distance}:best;
   },{pin:null,distance:Math.max(27,canvas.width/bounds.width*15)});
-  if(closest.pin){$('person').value=closest.pin.resident.id;render();}
+  if(closest.pin){
+    $('person').value=closest.pin.resident.id;
+    render();
+    openResidentProfile();
+  }
 });
 function when(tick){return `第 ${Math.floor(tick/48)+1} 天 ${String(Math.floor(tick%48/2)).padStart(2,'0')}:${tick%2?'30':'00'}`;}
 const modalOpen=()=>['journal','stories','moment','rail','wish'].some(id=>$(id).open);
@@ -440,7 +444,7 @@ function render(){
   renderRail();
   if($('moment').open)renderMoment();
   if($('wish').open)renderWish();
-  $('mapHint').textContent=choosingPlace?`给 ${p.name} 点一个目的地`:'点击地图上的居民';
+  $('mapHint').textContent=choosingPlace?`给 ${p.name} 点一个目的地`:'点击居民打开档案';
   const moment=TownMoments.active(world);
   const latest=world.events.findLast(e=>e.type!=='town');
   $('mapStory').hidden=choosingPlace||(!latest&&!moment);
@@ -525,7 +529,13 @@ function openMoment(){renderMoment();$('moment').showModal();scheduleNext();refr
 $('closeMoment').onclick=()=>$('moment').close();
 $('openRail').onclick=()=>{$('rail').showModal();renderRail();scheduleNext();refreshMotion();};
 $('closeRail').onclick=()=>$('rail').close();
-$('openWish').onclick=()=>{renderWish();$('wish').showModal();scheduleNext();refreshMotion();};
+function openResidentProfile(){
+  renderWish();
+  $('wish').showModal();
+  scheduleNext();
+  refreshMotion();
+}
+$('openWish').onclick=openResidentProfile;
 $('closeWish').onclick=()=>$('wish').close();
 for(const id of ['journal','stories','moment','rail','wish'])$(id).addEventListener('close',()=>{scheduleNext();refreshMotion();});
 $('sound').onclick=async()=>{
