@@ -2,8 +2,8 @@ const assert = require('node:assert/strict');
 const {test} = require('node:test');
 const {readFileSync} = require('node:fs');
 const vm = require('node:vm');
-const source=['npc-memory.js','save-manager.js','town-school.js','town-stories.js','town-routines.js','town-moments.js','town-rail.js','town-wishes.js','world.js','town-homes.js','town-interiors.js','town-map.js','town-movement.js'].map(name=>readFileSync(require('node:path').join(__dirname,'..',name),'utf8')).join('\n');
-const {Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes}=vm.runInNewContext(source+'\n({Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes})');
+const source=['npc-memory.js','save-manager.js','town-school.js','town-stories.js','town-routines.js','town-moments.js','town-rail.js','town-wishes.js','town-relations.js','world.js','town-homes.js','town-interiors.js','town-map.js','town-movement.js'].map(name=>readFileSync(require('node:path').join(__dirname,'..',name),'utf8')).join('\n');
+const {Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes,TownRelations}=vm.runInNewContext(source+'\n({Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes,TownRelations})');
 function to(w,t){while(w.tick<t)Town.step(w);}
 function visualRandom(seed){
   return ()=>{
@@ -13,11 +13,12 @@ function visualRandom(seed){
 }
 test('redirect only meets residents who were scheduled at the destination',()=>{
   const w=Town.create(8);to(w,34);
+  const expected=w.people.filter(p=>p.id!==3&&Town.forecast(w,p,35)==='cafe').map(p=>p.id);
   assert.equal(Town.influence(w,3,'visit','cafe'),true);Town.step(w);
   const event=w.events.find(e=>e.type==='meeting');
   assert.ok(event);assert.equal(w.events.find(e=>e.id===event.parent).type,'visit');
   assert.ok(event.ids.includes(3));
-  assert.equal(w.people.find(p=>p.id===event.ids[1]).habit,'cafe');
+  assert.ok(expected.includes(event.ids[1]));
   assert.ok(NPCMemory.recall(w,3).some(memory=>memory.interpretation===event.text));
   const empty=Town.create(7);assert.ok(Town.influence(empty,3,'visit','cafe'));to(empty,5);
   assert.equal(empty.events.some(e=>e.type==='meeting'),false);
@@ -384,4 +385,46 @@ test('a strong roll creates an opportunity, respects distrust, and survives a ro
   assert.equal(w.events.filter(e=>e.parent===root&&e.type==='wish-result').length,1);
   assert.equal(TownWishes.state(refused,1).stage,0);
   assert.ok(NPCMemory.recall(w,1).some(m=>m.type==='wish-progress'));
+});
+test('a missed date gives both partners distinct perspectives and a later chance to talk',()=>{
+  const w=Town.create(8);to(w,34);
+  const nora=w.people.find(p=>p.id===6),owen=w.people.find(p=>p.id===8);
+  assert.equal(nora.place,'cafe');
+  assert.equal(owen.activity,'dateOvertime');
+  assert.equal(TownRelations.connections(w,nora)[0].label,'恋人');
+  to(w,36);
+  assert.equal(TownRelations.date(w,nora).plan.result.kind,'missed');
+  assert.match(TownRelations.thought(w,nora),/咖啡都凉了/);
+  assert.match(TownRelations.thought(w,owen),/收完摊/);
+  assert.ok(nora.trust[owen.id]<owen.trust[nora.id]);
+  const save=JSON.parse(JSON.stringify(w));
+  assert.ok(Town.valid(save));
+  to(save,84);to(w,84);
+  assert.equal(JSON.stringify(w),JSON.stringify(save));
+  assert.equal(TownRelations.date(w,nora).plan.result.kind,'repaired');
+  assert.equal(w.events.filter(e=>e.type==='date-result'&&e.ids.includes(nora.id)).length,2);
+});
+test('a good roll clears a work conflict but a competing redirect can still prevent the date',()=>{
+  const w=Town.create(1200);to(w,17);
+  assert.ok(Town.nudgeDate(w,6));
+  assert.equal(TownRelations.date(w,w.people[5]).plan.die,5);
+  assert.equal(w.tokens,2);
+  assert.equal(Town.nudgeDate(w,8),null);
+  const diverted=JSON.parse(JSON.stringify(w));
+  to(w,36);
+  assert.equal(TownRelations.date(w,w.people[5]).plan.result.kind,'kept');
+  to(diverted,33);
+  assert.ok(Town.influence(diverted,8,'visit','forest'));
+  to(diverted,36);
+  assert.equal(TownRelations.date(diverted,diverted.people[5]).plan.result.kind,'missed');
+});
+test('profiles distinguish family, classmates, and friends in a legacy save',()=>{
+  const w=Town.create(8);to(w,17);
+  delete w.relationshipDates;
+  assert.ok(Town.valid(w));
+  const forId=id=>TownRelations.connections(w,w.people.find(p=>p.id===id));
+  assert.equal(forId(26).find(c=>c.person.id===2).label,'家人');
+  assert.equal(forId(26).find(c=>c.person.id===27).label,'同学');
+  assert.equal(forId(3).find(c=>c.person.id===7).label,'朋友');
+  assert.ok(w.people.every(p=>TownRelations.connections(w,p).length>0));
 });

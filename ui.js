@@ -56,14 +56,19 @@ function beep(){
   note.connect(gain).connect(audio.destination);note.start();note.stop(audio.currentTime+.23);
 }
 
-function paint(){
-  const p=selected();
+function residentActivity(p){
   const pin=mapPins.find(walker=>walker.resident.id===p.id);
   const place=p.place==='homes'?'家':Town.places[p.place].name;
   const label=TownRoutines.labels[Town.activity(world,p)];
   const companion=pin?.partner&&world.people.find(other=>other.id===pin.partner);
-  const activity=companion?`和 ${companion.name} ${pin.social==='talk'?'聊天':'同行'}`:
+  return companion?`和 ${companion.name} ${pin.social==='talk'?'聊天':'同行'}`:
     pin?.movingTo||pin?.place!==p.place?`去${place}的路上`:p.place==='homes'&&label.startsWith('在家')?label:`${place} · ${label}`;
+}
+function personalThought(p){
+  return TownRelations.thought(world,p)??TownWishes.thought(world,p,Town.activity(world,p));
+}
+function paint(){
+  const p=selected(),activity=residentActivity(p);
   const bio=`${activity} · 心情 ${p.mood} · ${p.money} 元${p.questioned?' · 察觉异常':''}`;
   if($('bio').textContent!==bio)$('bio').textContent=bio;
   TownMap.draw(ctx,world,p.id,canvas.clientWidth,mapPins,choosingPlace,interiors,animationTime,motion.matches?.62:tickProgress);
@@ -142,17 +147,69 @@ function renderRail(){
 }
 function renderWish(){
   const p=selected(),profile=TownWishes.profile(p.id),state=TownWishes.state(world,p.id),panel=$('wishPanel');
-  const thought=TownWishes.thought(world,p,Town.activity(world,p));
-  $('wishTitle').textContent=`${p.name} 的心声`;
+  const thought=personalThought(p),date=TownRelations.date(world,p);
+  $('wishTitle').textContent=`${p.name} 的人物档案`;
+  function switchResident(id){
+    $('person').value=id;render();$('wishTitle').focus();
+  }
   const people=storyNode('div','','wish-people');
-  for(const id of TownWishes.ids){
+  for(const id of [6,8,...TownWishes.ids]){
     const person=world.people.find(candidate=>candidate.id===id);
-    const button=storyButton(person.name,()=>{$('person').value=id;render();
-      panel.querySelector('[aria-pressed=true]').focus();});
+    const button=storyButton(person.name,()=>switchResident(id));
     button.setAttribute('aria-pressed',String(id===p.id));people.append(button);
   }
-  panel.replaceChildren(people,storyNode('p',`「${thought}」`,'wish-thought'));
-  if(!profile)return;
+  const mood=p.mood>=80?'心情很好':p.mood>=55?'心情平稳':p.mood>=40?'有些低落':'很想独处';
+  panel.replaceChildren(people,storyNode('p',`此刻 · ${residentActivity(p)} · ${mood}（${p.mood}）`,'story-meta'),
+    storyNode('p',`「${thought}」`,'wish-thought'));
+  const current=Town.activity(world,p);
+  for(let tick=world.tick+1;tick<=world.tick+48;tick++){
+    const next=Town.forecastPlan(world,p,tick);
+    if(next.place===p.place&&next.activity===current)continue;
+    panel.append(storyNode('p',`接下来 · ${when(tick)} · ${Town.places[next.place].name} · ${TownRoutines.labels[next.activity]}`,'story-meta'));
+    break;
+  }
+  if(date){
+    const {plan,other,place,conflict,canNudge}=date;
+    const statuses={kept:'赴约了',missed:'失约了',repaired:'说开了',strained:'见了面，话没说开'};
+    const block=storyNode('section','','resident-section');
+    const heading=storyNode('h3',plan.result?statuses[plan.result.kind]:`想和 ${other.name} ${plan.kind==='repair'?'把上次的事说开':'见一面'}`);
+    heading.tabIndex=-1;
+    block.append(heading,storyNode('p',`恋人 · ${other.name} · ${when(plan.at)} · ${Town.places[place].name}`,'story-meta'));
+    if(plan.result)block.append(storyNode('p',plan.result.text));
+    else if(plan.previous)block.append(storyNode('p',`上次：${plan.previous.text}`));
+    else if(conflict)block.append(storyNode('p','Owen 得先收摊，可能赶不上约定时间。'));
+    if(plan.die)block.append(storyNode('p',`掷出 ${plan.die} 点。${plan.die>=5?'收摊比预期顺利。':plan.die>=3?'能赶在约定结束前收完。':'收摊还是耽搁了。'}`,'story-meta'));
+    const actions=storyNode('div','','story-actions');
+    actions.append(storyButton(`查看 ${other.name} 怎么想`,()=>switchResident(other.id)));
+    if(!plan.result&&world.tick<plan.at-1)actions.append(storyButton('前进到见面前半小时',()=>{
+      while(world.tick<plan.at-1)Town.step(world);
+      resetCrowd();save();render();panel.querySelector('.resident-section h3').focus();
+    }));
+    if(canNudge)actions.append(storyButton('掷骰争取早点收摊 · 1 次干预',()=>{
+      const root=Town.nudgeDate(world,p.id);
+      if(root){watched=root;beep();save();render();panel.querySelector('.resident-section h3').focus();}
+    },'story-primary'));
+    block.append(actions);panel.append(block);
+  }
+  const details=document.createDocumentFragment(),connections=TownRelations.connections(world,p).slice(0,5);
+  if(connections.length){
+    const people=storyNode('div','','profile-relations');
+    for(const {person,label,score,event} of connections){
+      const button=storyButton('',()=>switchResident(person.id));
+      const feeling=score>=8?'更信任了':score<0?'有些隔阂':'';
+      button.append(storyNode('strong',`${person.name} · ${label}`));
+      if(event||feeling)button.append(storyNode('small',[feeling,event?.text].filter(Boolean).join(' · ')));
+      people.append(button);
+    }
+    details.append(storyNode('h3','人际关系'),people);
+  }
+  const memories=NPCMemory.recall(world,p.id).slice(0,3);
+  if(memories.length){
+    const list=storyNode('ul','','profile-memories');
+    for(const memory of memories)list.append(storyNode('li',memory.interpretation));
+    details.append(storyNode('h3','记得的事'),list);
+  }
+  if(!profile){panel.append(details);return;}
   const goal=TownWishes.beat(p.id,state),other=world.people.find(candidate=>candidate.id===profile.other);
   const heading=storyNode('h3',profile.title);heading.tabIndex=-1;
   panel.append(heading,storyNode('p',goal?`${profile.fear} · 进展 ${state.stage} / ${profile.beats.length}`:'这件心事已经有了结果。','story-meta'));
@@ -162,7 +219,7 @@ function renderWish(){
     die.append(face,storyNode('span',`上次掷出 ${state.die} 点`));panel.append(die);
   }
   if(state.latest)panel.append(storyNode('p',state.latest,'story-result'));
-  if(!goal)return;
+  if(!goal){panel.append(details);return;}
   const actions=storyNode('div','','story-actions');
   if(state.plan){
     const {at,until}=state.plan;
@@ -178,12 +235,12 @@ function renderWish(){
     const label=canRoll?'为这件事掷骰 · 1 次干预':world.tokens===0?'今天的干预次数用完了':'明天可以再掷骰';
     const button=storyButton(label,()=>{
       const root=Town.rollWish(world,p.id);
-      if(root){watched=root;beep();save();render();panel.querySelector('h3').focus();}
+      if(root){watched=root;beep();save();render();$('wishTitle').focus();}
     },'story-primary');
     button.disabled=!canRoll;actions.append(button);
     panel.append(storyNode('p','1–2 点会犹豫，3–4 点会自己去等，5–6 点会给两人都留出机会。赴约和开口还要看日程与信任。','story-meta'));
   }
-  panel.append(actions);
+  panel.append(actions,details);
 }
 function renderMoment(){
   const m=world.moment,panel=$('momentPanel');
@@ -361,7 +418,7 @@ function renderFollow(){
   }
   const outcome=world.events.findLast(e=>e.parent===root.id&&e.type!=='suspicion');
   const result=world.events.findLast(e=>e.type==='moment-favor'&&e.parent===outcome?.id)??outcome;
-  const pending=world.pending.some(e=>e.parent===root.id)||TownMoments.active(world)?.root===root.id||TownWishes.activeRoot(world,root.id);
+  const pending=world.pending.some(e=>e.parent===root.id)||TownMoments.active(world)?.root===root.id||TownWishes.activeRoot(world,root.id)||TownRelations.activeRoot(world,root.id);
   const badge=document.createElement('strong');
   badge.textContent=pending?'追踪中':result?'后续':'已发生';
   text.append(badge,document.createTextNode(result?.text??root.text));
@@ -373,7 +430,7 @@ function render(){
   $('skyIcon').title=world.power?'停电':world.weather;
   $('tokens').textContent=`今天还有 ${world.tokens} 次`;
   TownMap.portrait($('portrait'),p);
-  $('wishPreview').textContent=`${p.name}：${TownWishes.thought(world,p,Town.activity(world,p))}`;
+  $('wishPreview').textContent=`${p.name}：${personalThought(p)}`;
   document.querySelectorAll('[data-kind]').forEach(button=>button.disabled=!Town.canAct(world,p,button.dataset.kind));
   if(world.tokens<=0)choosingPlace=false;
   $('redirect').disabled=world.tokens<=0;

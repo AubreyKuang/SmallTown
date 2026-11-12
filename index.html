@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#263e35">
 <title>上帝扔骰子 · 微光镇</title>
-<link rel="stylesheet" href="style.css?v=10">
+<link rel="stylesheet" href="style.css?v=11">
 </head>
 <body>
 <main class="game">
@@ -33,7 +33,7 @@
     <button id="openRail" class="rail-entry" aria-label="查看列车时刻">列车 ›</button>
     <button id="mapStory" class="map-story" hidden><span id="mapStoryLabel">镇讯</span><span id="mapStoryText"></span><span aria-hidden="true">›</span></button>
   </div>
-  <button id="openWish" class="wish-entry"><span aria-hidden="true">⚄</span><span id="wishPreview"></span><b>听心声 ›</b></button>
+  <button id="openWish" class="wish-entry"><span aria-hidden="true">⚄</span><span id="wishPreview"></span><b>人物档案 ›</b></button>
   <button class="town-board" id="openStories"><span class="board-icon" aria-hidden="true">▤</span><span><strong id="storyButtonTitle">镇务告示</strong><small id="storyButtonDetail"></small></span><span class="board-arrow" aria-hidden="true">›</span></button>
   <div class="dock">
     <div class="resident">
@@ -56,7 +56,7 @@
   <div id="follow" class="follow" aria-live="polite"></div>
 </section>
 <dialog id="wish" aria-labelledby="wishTitle">
-  <div class="journal-head"><h2 id="wishTitle">居民的心愿</h2><button id="closeWish" aria-label="关闭心愿">×</button></div>
+  <div class="journal-head"><h2 id="wishTitle" tabindex="-1">人物档案</h2><button id="closeWish" aria-label="关闭人物档案">×</button></div>
   <div id="wishPanel" class="story-panel"></div>
 </dialog>
 <dialog id="rail" aria-labelledby="railTitle">
@@ -80,5 +80,5 @@
   <div class="save-controls"><button id="export">导出存档</button><button id="importButton">导入存档</button><input id="import" type="file" accept="application/json,.json" hidden><label><input id="offline" type="checkbox"> 离线推进</label></div>
 </dialog>
 </main>
-<script src="npc-memory.js"></script><script src="save-manager.js"></script><script src="town-school.js"></script><script src="town-stories.js?v=5"></script><script src="town-routines.js?v=9"></script><script src="town-moments.js"></script><script src="town-rail.js"></script><script src="town-wishes.js"></script><script src="world.js?v=9"></script><script src="town-homes.js?v=5"></script><script src="town-interiors.js"></script><script src="town-art.js?v=8"></script><script src="town-map.js?v=10"></script><script src="town-movement.js?v=8"></script><script src="ui.js?v=10"></script>
+<script src="npc-memory.js"></script><script src="save-manager.js"></script><script src="town-school.js"></script><script src="town-stories.js?v=5"></script><script src="town-routines.js?v=11"></script><script src="town-moments.js"></script><script src="town-rail.js"></script><script src="town-wishes.js"></script><script src="town-relations.js"></script><script src="world.js?v=11"></script><script src="town-homes.js?v=5"></script><script src="town-interiors.js"></script><script src="town-art.js?v=8"></script><script src="town-map.js?v=10"></script><script src="town-movement.js?v=8"></script><script src="ui.js?v=11"></script>
 </body></html>
