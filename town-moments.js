@@ -20,6 +20,13 @@ const TownMoments=(()=>{
   const active=w=>['open','waiting'].includes(w.moment?.state)?w.moment:null;
   const together=(a,b,place)=>a.place===b.place&&(!place||a.place===place);
   const bond=(w,a,b)=>(b.trust[a.id]||0)+NPCMemory.influence(w,b.id,a.id)*10;
+  // The same scene with the same two residents is offered at most once per day,
+  // so the journal doesn't fill up with identical repeats of one encounter.
+  const offeredToday=(w,kind,a,b)=>{
+    const d=Math.floor(w.tick/48);
+    const text=scenes[kind].prompt(a.name,b.name);
+    return w.events.some(e=>e.type==='moment-start'&&Math.floor(e.tick/48)===d&&e.text===text);
+  };
   function start(w,log){
     const hour=w.tick%48;
     if(![17,22,29,34,39].includes(hour)||active(w)||w.moment?.offered===w.tick)return;
@@ -33,7 +40,13 @@ const TownMoments=(()=>{
       if(scene.place==='bakery'&&!worker)continue;
       const a=worker||people[0];
       const candidates=people.filter(p=>p!==a);
-      const b=candidates[(w.tick+Math.floor(w.seed/32))%candidates.length];
+      const first=(w.tick+Math.floor(w.seed/32))%candidates.length;
+      let b=null;
+      for(let j=0;j<candidates.length;j++){
+        const candidate=candidates[(first+j)%candidates.length];
+        if(!offeredToday(w,kind,a,candidate)){b=candidate;break;}
+      }
+      if(!b)continue;
       const offered=w.tick;
       const root=log(scene.prompt(a.name,b.name),null,'moment-start',[a.id,b.id]);
       w.moment={kind,a:a.id,b:b.id,root,offered,until:offered+4,state:'open'};

@@ -249,7 +249,7 @@ const TownMap = (() => {
     for(const traveler of TownRail.passengers(world.tick,progress)){
       const {id,x,y,phase,visitor}=traveler;
       const walking=['alight','walk','board'].includes(phase);
-      figure(ctx,{id},x,y,walking?Math.sin(time/110+id)*1.4:0,.85);
+      figure(ctx,{id},x,y,walking?Math.sin(time/110+id)*1.4:0,1.1);
       ctx.fillStyle='#96684e';ctx.fillRect(x+4,y+1,3.5,4);
       line(ctx,[[x+4.6,y+1],[x+4.6,y],[x+6.2,y]],'#6a4e3b',.8);
       if(visitor){
@@ -263,11 +263,11 @@ const TownMap = (() => {
     }
     for(const {resident,x,y,step,indoors,activity,social,partner} of pins){
       if(indoors&&!interiors)continue;
-      if(resident.id===selection)ellipse(ctx,x,y+3,indoors?7:10,indoors?4:6,'#f9d17a');
-      if(social==='walk')ellipse(ctx,x,y+3,8,4,'#b7e1ca99');
+      if(resident.id===selection)ellipse(ctx,x,y+3,indoors?9:13,indoors?5:7,'#f9d17a');
+      if(social==='walk')ellipse(ctx,x,y+3,10,5,'#b7e1ca99');
       if(indoors&&activity==='sleep'&&!step){
         ellipse(ctx,x+2,y+1,5,3,color(resident.id));ellipse(ctx,x-3,y,2.6,2.6,'#f4c695');
-      }else figure(ctx,resident,x,y,step,(indoors?.74:1)*(TownSchool.student(resident)?.77:1));
+      }else figure(ctx,resident,x,y,step,(indoors?1:1.35)*(TownSchool.student(resident)?.8:1));
       if(activity==='stars')ellipse(ctx,x+8,y-1,3,3,'#fff0a4');
     }
     TownAtmosphere.particles(ctx,world,time,light,{ellipse,line});

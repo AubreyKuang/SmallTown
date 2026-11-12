@@ -128,7 +128,7 @@ const TownGoals=(()=>{
     s.streak=roots>=3&&notes===0?s.streak+1:0;
     if(s.streak>=3)unlock(w,s,'hidden');
     const done=s.day===d?s.quests.filter(q=>q.done):[];
-    s.last={day:d,done:done.map(q=>q.text),missed:s.day===d?s.quests.filter(q=>!q.done).map(q=>q.text):[],bonus:Math.min(2,done.length)};
+    s.last={day:d,done:done.map(q=>q.text),missed:s.day===d?s.quests.filter(q=>!q.done).map(q=>({text:q.text,hint:q.hint})):[],bonus:Math.min(2,done.length)};
     s.bonus=s.last.bonus;
     makeQuests(w,d+1);
     return s.bonus;

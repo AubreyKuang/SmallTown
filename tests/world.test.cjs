@@ -259,6 +259,21 @@ test('the same encounter ends differently when a hesitant neighbor is left alone
   assert.equal(copy.tokens,3);
   assert.equal(copy.moment.success,true);
 });
+test('the same map encounter is not offered twice in one day',()=>{
+  let offered=0;
+  for(let seed=0;seed<12;seed++){
+    const w=Town.create(seed);to(w,48*4);
+    const seen=new Set();
+    for(const e of w.events){
+      if(e.type!=='moment-start')continue;
+      offered++;
+      const key=`${Math.floor(e.tick/48)}|${e.text}`;
+      assert.ok(!seen.has(key),`same encounter twice in one day: ${key}`);
+      seen.add(key);
+    }
+  }
+  assert.ok(offered>0);
+});
 test('a booked reunion can be missed or rescued by an actual same-place arrival',()=>{
   const w=Town.create(8);to(w,17);
   assert.ok(Town.chooseMoment(w,w.moment.root,'reunion'));
@@ -468,6 +483,24 @@ test('a strong roll creates an opportunity, respects distrust, and survives a ro
   assert.equal(TownWishes.state(refused,1).stage,0);
   assert.ok(NPCMemory.recall(w,1).some(m=>m.type==='wish-progress'));
 });
+test('wish dice explain the roll band in the log',()=>{
+  const low=Town.create(0);to(low,17);
+  const lowRoot=Town.rollWish(low,1);
+  assert.ok(lowRoot);
+  assert.match(low.events.find(e=>e.id===lowRoot).text,/1–2 点/);
+  const middle=Town.create(1000);to(middle,17);
+  const midRoot=Town.rollWish(middle,1);
+  assert.ok(midRoot);
+  assert.match(middle.events.find(e=>e.id===midRoot).text,/3–4 点/);
+});
+test('intervention budget starts at three and a wish die spends one of them',()=>{
+  const w=Town.create(8);to(w,17);
+  assert.equal(w.tokens,3);
+  assert.equal(Town.dailyTotal(w),3);
+  assert.ok(Town.rollWish(w,1));
+  assert.equal(w.tokens,2);
+  assert.equal(Town.dailyTotal(w),3);
+});
 test('a missed date gives both partners distinct perspectives and a later chance to talk',()=>{
   const w=Town.create(8);to(w,34);
   const nora=w.people.find(p=>p.id===6),owen=w.people.find(p=>p.id===8);
@@ -567,12 +600,35 @@ test('midnight prints the daily paper and finished requests add tomorrow interve
   to(w,48);
   assert.equal(w.goals.completed,1);
   assert.equal(w.tokens,4);
+  assert.equal(Town.dailyTotal(w),4);
   assert.equal(w.papers.length,1);
   const paper=w.papers[0];
   assert.equal(paper.day,0);assert.equal(paper.weekday,'星期一');
   assert.ok(paper.headline.title&&paper.headline.text);
   assert.ok(paper.sections.some(s=>s.label==='蝴蝶效应'));
   assert.ok(paper.sections.some(s=>s.label==='命运委托'&&s.text.includes('1 / 1')));
+  assert.ok(Town.valid(w));
+});
+test('the daily paper reports the weather of the day it covers',()=>{
+  const w=Town.create(1);to(w,48);
+  const paper=w.papers[0];
+  assert.equal(paper.day,0);
+  // Day 0 was sunny; the next day's rain must not leak into this paper's footer.
+  assert.equal(paper.weather,'晴朗');
+  assert.equal(paper.today,undefined);
+});
+test('a missed request names what would have helped',()=>{
+  const w=Town.create(42);to(w,20);
+  TownGoals.state(w);
+  w.goals.quests=[{kind:'mood',a:1,text:'让 Alice 的心情升到 85',hint:'捡到硬币、赶上公交、被人帮一把，都会让人高兴。',done:false}];
+  w.people[0].mood=50;
+  to(w,48);
+  assert.equal(w.goals.last.missed.length,1);
+  assert.equal(w.goals.last.missed[0].text,'让 Alice 的心情升到 85');
+  assert.equal(w.goals.last.missed[0].hint,'捡到硬币、赶上公交、被人帮一把，都会让人高兴。');
+  const section=w.papers[0].sections.find(s=>s.label==='命运委托');
+  assert.match(section.text,/没完成「让 Alice 的心情升到 85」/);
+  assert.match(section.text,/捡到硬币/);
   assert.ok(Town.valid(w));
 });
 test('save manager migrates version 1 saves, rejects future versions and rewinds to snapshots',()=>{

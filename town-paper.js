@@ -115,15 +115,21 @@ const TownPaper=(()=>{
     if(notes.length)sections.push({label:'怪谈专栏',text:`Newton 的笔记本多了 ${notes.length} 页：“${notes.at(-1).text}”`});
     else if((w.skeptic?.stage??0)>=1)sections.push({label:'怪谈专栏',text:'Newton 今天没有新的记录，但他还在观察。'});
     const goals=w.goals?.last;
-    if(goals&&goals.day===d&&(goals.done.length||goals.missed.length))
-      sections.push({label:'命运委托',text:`完成 ${goals.done.length} / ${goals.done.length+goals.missed.length}${goals.bonus?`，今天多 ${goals.bonus} 次干预`:''}`});
+    if(goals&&goals.day===d&&(goals.done.length||goals.missed.length)){
+      let text=`完成 ${goals.done.length} / ${goals.done.length+goals.missed.length}${goals.bonus?`，今天多 ${goals.bonus} 次干预`:''}`;
+      const missed=goals.missed[0];
+      const missedText=typeof missed==='string'?missed:missed?.text;
+      const missedHint=typeof missed==='string'?null:missed?.hint;
+      if(missedText&&missedHint)text+=`\n没完成「${missedText}」——${missedHint}`;
+      sections.push({label:'命运委托',text});
+    }
     let special=null;
     const romance=events.filter(e=>['couple','crush','flowers','jealous','confess-no'].includes(e.type)).length;
     if(events.some(e=>e.type==='lecture'&&e.count>0))special='号外 · 有人说小镇里住着一位看不见的观察者';
     else if(events.some(e=>e.type==='meteor'))special='流星特刊 · 今晚请抬头';
     else if(romance>=2)special='恋爱特刊 · 今天的微光镇，空气里都是心动';
     else if(!events.some(e=>SOCIAL.has(e.type))&&!roots.length)special='安静特刊 · 今天谁也没和谁搭话，大家各忙各的，有点尴尬';
-    const paper={day:d,weekday:WEEK[d%7],weather:s.weather,power:s.power,headline:headline(w,events,roots),sections,special,today:w.weather,read:false};
+    const paper={day:d,weekday:WEEK[d%7],weather:s.weather,power:s.power,headline:headline(w,events,roots),sections,special,read:false};
     w.papers??=[];
     w.papers.push(paper);
     if(w.papers.length>14)w.papers.shift();

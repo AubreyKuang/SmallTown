@@ -131,7 +131,7 @@ canvas.addEventListener('click',event=>{
     if(pin.indoors&&!interiors)return best;
     const distance=Math.hypot(x-pin.x,y-pin.y+4);
     return distance<best.distance?{pin,distance}:best;
-  },{pin:null,distance:Math.max(27,canvas.width/bounds.width*15)});
+  },{pin:null,distance:Math.max(30,canvas.width/bounds.width*19)});
   const guest=TownRail.passengers(world.tick,motion.matches?.62:tickProgress).find(pin=>
     pin.visitor&&Math.min(Math.hypot(x-pin.x,y-pin.y+4),Math.hypot(x-pin.x,y-pin.y+26))<Math.min(24,closest.distance));
   if(guest){openRail(guest.visitor.id);return;}
@@ -169,7 +169,7 @@ function renderTwilight(){
   const active=TownTwilight.lit(world),panel=$('twilightPanel'),entry=$('openTwilight');
   const upcoming=scene&&world.tick<scene.until;
   const timing=active?`灯已点亮 · ${Town.places[active].name}`:upcoming?
-    `今晚 18:00 · ${Town.places[scene.place].name}`:`下次在第 ${TownTwilight.nextDay(world)+1} 天`;
+    `今晚 18:00 · ${Town.places[scene.place].name}`:`下次在第 ${TownTwilight.nextDay(world)+1} 天 · 每三天一盏灯`;
   entry.dataset.lit=String(Boolean(active));
   entry.replaceChildren(storyNode('strong','河畔灯笺'),storyNode('small',timing));
   if(!$('twilight').open)return;
@@ -205,7 +205,8 @@ function renderTwilight(){
     if(world.tick<scene.at-1)nodes.push(storyButton('到点灯前半小时',()=>{
       $('twilight').close();observeAt(scene.at-1);
     },'story-primary'));
-  }else nodes.push(storyNode('p',timing,'story-meta'));
+  }else nodes.push(storyNode('p',timing,'story-meta'),
+    storyNode('p','河畔灯笺每隔三个游戏日亮一次：Iris、Grace 和 Alice 轮流在 18:00 留一盏灯，晴天和小雪在中央广场，细雨时挪进咖啡厅。有空的人可能顺路坐下，聊聊画、旧车票或新烤的面包。'));
   const cards=TownTwilight.cards(world);
   if(cards.length){
     const list=storyNode('ul','','twilight-cards');
@@ -332,7 +333,8 @@ function renderWish(){
   if(state.die){
     const die=storyNode('div','','wish-die');
     const face=storyNode('span','⚀⚁⚂⚃⚄⚅'[state.die-1]);face.setAttribute('aria-hidden','true');
-    die.append(face,storyNode('span',`上次掷出 ${state.die} 点`));panel.append(die);
+    const band=state.die<=2?'1–2 点：犹豫，没开口':state.die<=4?'3–4 点：自己去等，对方按原日程走':'5–6 点：给双方留出碰面的机会';
+    die.append(face,storyNode('span',`上次掷出 ${state.die} 点 · ${band}`));panel.append(die);
   }
   if(state.latest)panel.append(storyNode('p',state.latest,'story-result'));
   if(!goal){panel.append(details);return;}
@@ -354,8 +356,8 @@ function renderWish(){
       if(root){watched=root;beep();save();render();$('wishTitle').focus();}
     },'story-primary');
     button.disabled=!canRoll;actions.append(button);
-    panel.append(storyNode('p','1–2 点会犹豫，3–4 点会自己去等，5–6 点会给两人都留出机会。赴约和开口还要看日程与信任。','story-meta'));
   }
+  panel.append(storyNode('p','掷骰花 1 次干预。1–2 点会犹豫，3–4 点会自己去等，5–6 点会给两人都留出机会。赴约和开口还要看日程与信任。','story-meta'));
   panel.append(actions,details);
 }
 function renderMoment(){
@@ -571,7 +573,8 @@ function render(){
   $('clock').textContent=when(world.tick);
   $('skyIcon').textContent=world.power?'◐':world.weather==='小雪'?'❄':world.weather==='细雨'?'☂':night?'☾':'☀';
   $('skyIcon').title=world.power?'停电':world.weather;
-  $('tokens').textContent=`今天还有 ${world.tokens} 次`;
+  $('tokens').textContent=`今日干预：${world.tokens}/${Town.dailyTotal(world)} 次`;
+  $('tokens').title='每天 3 次起；完成委托，第二天多得，最多 5 次。掷骰、捎灯笺、约时间等每次花 1 次干预。';
   TownMap.portrait($('portrait'),p);
   $('wishPreview').textContent=`${p.name}：${personalThought(p)}`;
   document.querySelectorAll('[data-kind]').forEach(button=>button.disabled=!Town.canAct(world,p,button.dataset.kind));
@@ -615,7 +618,7 @@ function scheduleNext(delay=Math.max(100,(1-tickProgress)*tickDuration())){
 function setRunning(next){
   running=next;
   manualUntil=0;
-  $('auto').textContent=running?'Ⅱ':'▶';
+  $('auto').textContent=running?'⏸':'▶';
   $('auto').setAttribute('aria-pressed',String(running));
   $('auto').setAttribute('aria-label',running?'暂停时间':'继续时间');
   $('auto').title=running?'暂停时间':'继续时间';
@@ -638,6 +641,15 @@ function openJournal(){
   refreshMotion();
 }
 $('step').onclick=()=>{advance();manualUntil=performance.now()+7200;scheduleNext();refreshMotion();};
+$('toNight').onclick=()=>{
+  setRunning(false);
+  const target=(Math.floor(world.tick/48)+1)*48;
+  const previousPaper=world.papers?.at(-1);
+  while(world.tick<target)Town.step(world);
+  const latestPaper=world.papers?.at(-1);
+  if(latestPaper&&latestPaper!==previousPaper)skippedPaperDay=latestPaper.day;
+  resetCrowd();save();render();
+};
 $('auto').onclick=()=>setRunning(!running);
 $('speed').onclick=()=>{fast=!fast;$('speed').textContent=fast?'3×':'1×';scheduleNext();};
 function showHomeMode(){
@@ -830,7 +842,7 @@ function renderPaper(){
     for(const line of section.text.split('\n'))box.append(storyNode('p',line));
     grid.append(box);
   }
-  nodes.push(grid,storyNode('p',`今日天气：${p.today}`,'story-meta'));
+  nodes.push(grid,storyNode('p',`今日天气：${p.weather}`,'story-meta'));
   const actions=storyNode('div','','story-actions paper-actions');
   const prev=storyButton('‹ 前一天',()=>{paperIndex--;renderPaper();});prev.disabled=paperIndex<=0;
   const next=storyButton('后一天 ›',()=>{paperIndex++;renderPaper();});next.disabled=paperIndex>=papers.length-1;
@@ -862,8 +874,11 @@ function renderFate(){
       nodes.push(card);
     }
     nodes.push(storyNode('p','每完成一件委托，第二天多 1 次干预（最多多 2 次）。委托只看小镇里真实发生的事。','story-meta'));
-    if(g.last&&(g.last.done.length||g.last.missed.length))
-      nodes.push(storyNode('p',`昨天：完成 ${g.last.done.length} 件${g.last.missed.length?`，没完成「${g.last.missed.join('」「')}」`:''}。`,'story-meta'));
+    if(g.last&&(g.last.done.length||g.last.missed.length)){
+      const missed=g.last.missed.map(q=>typeof q==='string'?{text:q,hint:null}:q);
+      nodes.push(storyNode('p',`昨天：完成 ${g.last.done.length} 件${missed.length?`，没完成「${missed.map(q=>q.text).join('」「')}」`:''}。`,'story-meta'));
+      for(const q of missed)if(q.hint)nodes.push(storyNode('p',`「${q.text}」没完成——下次可以试试：${q.hint}`,'story-meta'));
+    }
   }else if(fateTab==='badges'){
     const got=TownGoals.ACHIEVEMENTS.filter(a=>g.achievements[a.key]!=null).length;
     nodes.push(storyNode('p',`已收集 ${got} / ${TownGoals.ACHIEVEMENTS.length} 张纪念卡。带 ★ 的是稀有卡，只在小概率的事里出现。`,'fate-rank'));

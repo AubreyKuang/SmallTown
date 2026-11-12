@@ -34,7 +34,8 @@ const TownWishes=(()=>{
     const s=w.wishes[id]??={stage:0};
     const die=1+Math.floor(random()*6);
     w.tokens--;s.die=die;s.lastDay=day(w.tick);
-    const root=log(`你为 ${p.name} 的心愿掷出了 ${die} 点。`,null,'wish-roll',[id,other]);
+    const band=die<=2?'1–2 点：犹豫，没开口':die<=4?'3–4 点：自己去等，对方按原日程走':'5–6 点：给双方留出碰面的机会';
+    const root=log(`你为 ${p.name} 的心愿掷出了 ${die} 点（${band}）。`,null,'wish-roll',[id,other]);
     if(die<=2){
       p.mood=Math.max(0,p.mood-3);
       s.latest='原本想开口，临到头还是把话咽了回去。';

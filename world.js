@@ -89,6 +89,8 @@ const Town = (() => {
   const canAct=(w,p,kind)=>w.tokens>0&&
     (kind!=='delay'||p.id<TownSchool.teacher&&TownRoutines.canDelay(w,p))&&
     (!TownSchool.student(p)||!['bus','lottery'].includes(kind));
+  // Today's intervention budget: 3 base, plus up to 2 earned from yesterday's finished requests.
+  const dailyTotal=w=>3+(w.goals?.bonus??0);
   function influence(w,id,kind,place) {
     const p=w.people.find(person=>person.id===id);
     if(!p||!canAct(w,p,kind)||!['delay','lost','coin','bus','lottery','visit'].includes(kind)||(kind==='visit'&&!Object.hasOwn(places,place)))return false;
@@ -245,5 +247,5 @@ const Town = (() => {
   const inviteTwilight=(w,id)=>TownTwilight.invite(w,id,()=>random(w),(...args)=>log(w,...args));
   const forecastPlan=(w,p,tick)=>schedule({...w,tick,power:tick-w.tick<4&&w.power},p);
   const forecast=(w,p,tick)=>forecastPlan(w,p,tick).place;
-  return {create,step,influence,places,valid,migrate,startStory,inviteStory,forecast,forecastPlan,activity,canAct,upgrade,chooseMoment,roadTalk,rollWish,nudgeDate,inviteTwilight};
+  return {create,step,influence,places,valid,migrate,startStory,inviteStory,forecast,forecastPlan,activity,canAct,dailyTotal,upgrade,chooseMoment,roadTalk,rollWish,nudgeDate,inviteTwilight};
 })();
