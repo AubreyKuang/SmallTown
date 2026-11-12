@@ -2,8 +2,8 @@ const assert = require('node:assert/strict');
 const {test} = require('node:test');
 const {readFileSync} = require('node:fs');
 const vm = require('node:vm');
-const source=['npc-memory.js','save-manager.js','world.js'].map(name=>readFileSync(require('node:path').join(__dirname,'..',name),'utf8')).join('\n');
-const {Town,SaveManager,NPCMemory}=vm.runInNewContext(source+'\n({Town,SaveManager,NPCMemory})');
+const source=['npc-memory.js','save-manager.js','world.js','town-map.js'].map(name=>readFileSync(require('node:path').join(__dirname,'..',name),'utf8')).join('\n');
+const {Town,SaveManager,NPCMemory,TownMap}=vm.runInNewContext(source+'\n({Town,SaveManager,NPCMemory,TownMap})');
 function to(w,t){while(w.tick<t)Town.step(w);}
 test('redirect only meets residents who were scheduled at the destination',()=>{
   const w=Town.create(8);to(w,34);
@@ -15,6 +15,44 @@ test('redirect only meets residents who were scheduled at the destination',()=>{
   assert.equal(NPCMemory.recall(w,3).length,1);
   const empty=Town.create(7);assert.ok(Town.influence(empty,3,'visit','cafe'));to(empty,5);
   assert.equal(empty.events.some(e=>e.type==='meeting'),false);
+  const quiet=empty.events.find(e=>e.type==='quiet');
+  assert.equal(quiet?.parent,empty.events.find(e=>e.type==='visit').id);
+});
+test('staggered commuters animate along the street after their destination changes',()=>{
+  const w=Town.create(8);to(w,15);
+  const from=TownMap.people(w).find(pin=>pin.resident.id===1);
+  Town.step(w);
+  const target=TownMap.people(w).find(pin=>pin.resident.id===1);
+  assert.equal(from.place,'homes');
+  assert.equal(target.place,'station');
+  assert.equal(w.people.find(p=>p.id===2).place,'homes');
+  const points=TownMap.route(from,target);
+  assert.ok(points.length>2);
+  const path=TownMap.plan(points);
+  assert.notDeepEqual(TownMap.position(path,.5),points[0]);
+  assert.notDeepEqual(TownMap.position(path,.5),points.at(-1));
+  assert.deepEqual(TownMap.position(path,1),points.at(-1));
+});
+test('residents share a location for unprompted conversations and remember their own perspective',()=>{
+  const w=Town.create(8);to(w,25);
+  const chat=w.events.find(event=>event.type==='chat');
+  assert.ok(chat);
+  const [a,b]=chat.ids.map(id=>w.people.find(p=>p.id===id));
+  assert.equal(a.place,b.place);
+  assert.match(NPCMemory.recall(w,a.id)[0].interpretation,new RegExp(b.name));
+  assert.match(NPCMemory.recall(w,b.id)[0].interpretation,new RegExp(a.name));
+  assert.ok(w.people.filter(p=>!chat.ids.includes(p.id)).every(p=>NPCMemory.recall(w,p.id).length===0));
+});
+test('missing a bus delays arrival relative to the resident’s own shift',()=>{
+  const w=Town.create(8);to(w,15);
+  const bob=w.people.find(p=>p.id===2);
+  assert.ok(Town.influence(w,bob.id,'delay'));
+  to(w,20);
+  assert.equal(bob.place,'station');
+  assert.equal(w.events.some(event=>event.type==='late'),false);
+  Town.step(w);
+  assert.equal(bob.place,bob.job);
+  assert.match(w.events.find(event=>event.type==='late').text,/30 分钟/);
 });
 test('lottery can produce loan conflict, and repeated anomalies raise suspicion',()=>{
   const w=Town.create(9);to(w,34);

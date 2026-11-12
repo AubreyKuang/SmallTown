@@ -74,6 +74,8 @@ const TownMap = (() => {
     line(ctx,[[244,315],[211,391],[228,416]],'#dfc49b',20);
     line(ctx,[[424,270],[427,220]],'#e3cba0',17);
     line(ctx,[[769,287],[769,223]],'#e3cba0',17);
+    line(ctx,[[588,247],[588,271]],'#e3cba0',17);
+    line(ctx,[[628,427],[716,464],[780,479]],'#ead6aa',19);
     line(ctx,[[895,389],[894,502],[905,611]],'#76766a',19);
     for(let y=390;y<620;y+=9)line(ctx,[[884,y],[908,y]],'#a29274',3);
     line(ctx,[[889,390],[889,614]],'#535b55',2);line(ctx,[[902,390],[902,614]],'#535b55',2);
@@ -112,32 +114,96 @@ const TownMap = (() => {
     for(const [place,residents] of groups){
       const p=locations[place];
       const columns=Math.min(residents.length,8);
-      residents.forEach((resident,i)=>pins.push({resident,x:p.x+(i%columns-(columns-1)/2)*17,y:p.y+Math.floor(i/columns)*15+15}));
+      residents.forEach((resident,i)=>{
+        const stroll=(world.tick+resident.id*3)%8;
+        const x=p.x+(i%columns-(columns-1)/2)*17+Math.sin(stroll*Math.PI/4)*5;
+        const y=p.y+Math.floor(i/columns)*15+15+Math.cos(stroll*Math.PI/4)*4;
+        pins.push({resident,place,x,y});
+      });
     }
     return pins.sort((a,b)=>a.y-b.y);
   }
-  function draw(ctx,world,selection,displayWidth){
+  const street = [[244,315],[359,275],[430,272],[551,268],[704,279],[769,287]];
+  const entrances = {
+    homes:{junction:0,walk:[[231,311]]}, forest:{junction:0,walk:[[211,391]]},
+    bakery:{junction:2,walk:[[427,233]]}, cafe:{junction:3,walk:[[588,270],[588,249]]},
+    square:{junction:3,walk:[[550,333]]},
+    station:{junction:3,walk:[[550,353],[628,427],[717,465]]},
+    market:{junction:5,walk:[[770,250]]}
+  };
+  function route(from,to){
+    const a=entrances[from.place],b=entrances[to.place];
+    const start=[from.x,from.y],end=[to.x,to.y];
+    if(a===b)return [start,end];
+    const middle=street.slice(Math.min(a.junction,b.junction),Math.max(a.junction,b.junction)+1);
+    if(a.junction>b.junction)middle.reverse();
+    return [start,...a.walk,...middle,...b.walk.slice().reverse(),end];
+  }
+  function plan(points){
+    const lengths=points.slice(1).map(([x,y],i)=>Math.hypot(x-points[i][0],y-points[i][1]));
+    return {points,lengths,total:lengths.reduce((total,length)=>total+length,0)};
+  }
+  function position(path,fraction){
+    if(fraction>=1)return path.points.at(-1);
+    let remaining=path.total*fraction;
+    for(const [i,length] of path.lengths.entries()){
+      if(length>0&&remaining<=length){
+        const [x,y]=path.points[i], [endX,endY]=path.points[i+1];
+        return [x+(endX-x)*remaining/length,y+(endY-y)*remaining/length];
+      }
+      remaining-=length;
+    }
+    return path.points.at(-1);
+  }
+  function figure(ctx,resident,x,y,step=0,scale=1){
+    ctx.save();ctx.translate(x,y);ctx.scale(scale,scale);
+    ellipse(ctx,0,4,7,3,'#33463355');
+    line(ctx,[[-2,2],[-2+step,6]],'#3c3c32',2);
+    line(ctx,[[2,2],[2-step,6]],'#3c3c32',2);
+    ellipse(ctx,0,0,5,5,color(resident.id));
+    ellipse(ctx,0,-6,4.2,4.6,'#f4c695');
+    ellipse(ctx,0,-8,4.5,2.8,['#48352b','#644032','#a5683a'][resident.id%3]);
+    ctx.restore();
+  }
+  function portrait(canvas,resident){
+    const ctx=canvas.getContext('2d');
+    ctx.clearRect(0,0,64,64);
+    ellipse(ctx,32,32,25,25,'#f6e7b9');
+    figure(ctx,resident,32,38,0,2.65);
+  }
+  function findPlace(x,y){
+    return Object.entries(locations).find(([,p])=>Math.hypot(x-p.x,y-p.y)<47||Math.abs(x-p.x)<53&&Math.abs(y-p.labelY)<20)?.[0];
+  }
+  const backgrounds=new Map();
+  function background(night,lit,dusk){
+    const key=night?(lit?'night':'outage'):dusk?'dusk':'day';
+    if(!backgrounds.has(key)){
+      const canvas=document.createElement('canvas');
+      canvas.width=960;canvas.height=620;
+      const ctx=canvas.getContext('2d');
+      terrain(ctx,lit);
+      if(night||dusk){
+        ctx.fillStyle=night?'#25385d58':'#af614b26';ctx.fillRect(0,0,960,620);
+      }
+      backgrounds.set(key,canvas);
+    }
+    return backgrounds.get(key);
+  }
+  function draw(ctx,world,selection,displayWidth,pins,choosingPlace){
     const labelScale=Math.min(1.8,Math.max(1,640/displayWidth));
     const hour=world.tick%48/2;
     const night=hour<6||hour>=20;
-    terrain(ctx,night&&!world.power);
-    if(night||hour>=18){
-      ctx.fillStyle=night?'#25385d58':'#af614b26';ctx.fillRect(0,0,960,620);
-    }
-    const pins=people(world);
-    for(const {resident,x,y} of pins){
-      ellipse(ctx,x,y+4,7,3,'#33463355');
+    ctx.drawImage(background(night,night&&!world.power,hour>=18),0,0);
+    for(const {resident,x,y,step} of pins){
       if(resident.id===selection)ellipse(ctx,x,y+3,10,6,'#f9d17a');
-      line(ctx,[[x-2,y+3],[x-2,y+6]],'#3c3c32',2);line(ctx,[[x+2,y+3],[x+2,y+6]],'#3c3c32',2);
-      ellipse(ctx,x,y,5,5,color(resident.id));ellipse(ctx,x,y-6,4.2,4.6,'#f4c695');
-      ellipse(ctx,x,y-8,4.5,2.8,['#48352b','#644032','#a5683a'][resident.id%3]);
+      figure(ctx,resident,x,y,step);
       if(world.power&&resident.place==='square')ellipse(ctx,x+8,y-1,3,3,'#fff0a4');
     }
     for(const [id,{x,labelY}] of Object.entries(locations)){
       const text=Town.places[id].name;
       ctx.font=`600 ${15*labelScale}px system-ui, sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';
       const w=ctx.measureText(text).width+16;
-      ctx.beginPath();ctx.roundRect(x-w/2,labelY-11*labelScale,w,22*labelScale,6);ctx.fillStyle='#fff7dfed';ctx.fill();
+      ctx.beginPath();ctx.roundRect(x-w/2,labelY-11*labelScale,w,22*labelScale,6);ctx.fillStyle=choosingPlace?'#ffe8a5':'#fff7dfed';ctx.fill();
       ctx.fillStyle='#4d5340';ctx.fillText(text,x,labelY);
     }
     if(world.weather!=='晴朗')for(let i=0;i<60;i++){
@@ -154,5 +220,5 @@ const TownMap = (() => {
     }
     return pins;
   }
-  return { draw, color };
+  return { draw, people, portrait, route, plan, position, findPlace };
 })();

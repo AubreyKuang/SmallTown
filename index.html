@@ -3,42 +3,61 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#263e35">
 <title>上帝扔骰子 · 微光镇</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <main class="game">
-<header class="masthead">
-  <div class="identity"><span class="dice" aria-hidden="true">⚄</span><div><p>微光镇</p><h1>上帝扔骰子</h1></div></div>
-  <div class="timebar"><p id="clock" aria-live="polite"></p><button id="sound" aria-pressed="false">开启音效</button></div>
+<header class="topbar">
+  <a class="title" href="./" aria-label="微光镇"><span class="emblem" aria-hidden="true">⚄</span><div><h1>微光镇</h1><p>上帝扔骰子</p></div></a>
+  <div class="clock"><span id="skyIcon" aria-hidden="true">☀</span><p id="clock" aria-live="off"></p></div>
+  <div class="top-actions">
+    <button id="sound" aria-pressed="false" aria-label="开启音效" title="开启音效">♪</button>
+    <button id="openJournal">小镇手记 <span id="unread" hidden></span></button>
+  </div>
 </header>
-<div class="workspace">
-<section class="scene" aria-label="小镇地图">
-  <div class="map-frame"><canvas id="map" width="960" height="620" aria-label="微光镇地图，点击居民所在区域查看居民"></canvas><div class="map-key"><span></span> 点击地图查看居民</div></div>
-  <div class="scene-controls"><span>小镇时间</span><button id="step">推进半小时</button><button id="auto" aria-pressed="false">自动推进</button></div>
-</section>
-<aside class="controls" aria-label="拨动命运">
-  <div class="panel-head"><h2>拨动命运</h2><p id="tokens"></p></div>
-  <div class="resident">
-    <div id="portrait" aria-hidden="true"></div>
-    <div><label for="person">观察居民</label><select id="person"></select><p id="bio"></p></div>
+<section class="playfield" aria-label="小镇地图">
+  <div class="map-frame">
+    <canvas id="map" width="960" height="620" aria-label="微光镇地图，点击居民查看详情"></canvas>
+    <div class="map-top">
+      <p class="map-hint" id="mapHint">点击地图上的居民</p>
+      <div class="time-controls" aria-label="时间控制">
+        <button id="auto" aria-pressed="false" aria-label="继续时间" title="继续时间">▶</button>
+        <button id="speed" aria-label="切换速度" title="切换速度">1×</button>
+        <button id="step" aria-label="推进半小时" title="推进半小时">▸|</button>
+      </div>
+    </div>
+    <button id="mapStory" class="map-story" hidden><span aria-hidden="true">✦</span><span id="mapStoryText"></span><span aria-hidden="true">›</span></button>
   </div>
-  <div class="actions">
-    <button data-kind="delay"><span aria-hidden="true">◷</span>错过班车</button>
-    <button data-kind="lost"><span aria-hidden="true">◇</span>丢失钥匙</button>
-    <button data-kind="coin"><span aria-hidden="true">◉</span>捡到硬币</button>
-    <button data-kind="bus"><span aria-hidden="true">↗</span>赶上公交</button>
-    <button data-kind="lottery"><span aria-hidden="true">✦</span>中彩票</button>
+  <div class="dock">
+    <div class="resident">
+      <canvas id="portrait" width="64" height="64" aria-hidden="true"></canvas>
+      <div><label class="sr-only" for="person">观察居民</label><select id="person"></select><p id="bio"></p></div>
+    </div>
+    <div class="fate">
+      <div class="fate-head"><h2>拨动命运</h2><p id="tokens"></p></div>
+      <div class="cards" aria-label="选择一次干预">
+        <button data-kind="coin"><span aria-hidden="true">◉</span>捡到硬币</button>
+        <button data-kind="lottery"><span aria-hidden="true">✦</span>中彩票</button>
+        <button data-kind="bus"><span aria-hidden="true">↗</span>赶上公交</button>
+        <button data-kind="lost"><span aria-hidden="true">◇</span>丢失钥匙</button>
+        <button data-kind="delay" title="07:00 至 09:00 可用"><span aria-hidden="true">◷</span>错过班车</button>
+        <button id="redirect" aria-expanded="false"><span aria-hidden="true">⌖</span>改道</button>
+      </div>
+      <div id="destinations" class="destinations" hidden></div>
+    </div>
   </div>
-  <div class="redirect"><label for="place">改道去</label><select id="place"></select><button data-kind="visit">改变去处</button></div>
-  <section class="memory"><h3>居民记忆</h3><ul id="memories"></ul></section>
-</aside>
-</div>
-<section class="timeline">
-  <div class="panel-head"><h2>镇上的事</h2><p id="notice" aria-live="polite"></p></div>
-  <ol id="events"></ol>
-  <div class="save-controls"><button id="export">导出存档</button><label class="import">导入存档 <input id="import" type="file" accept="application/json,.json"></label><label><input id="offline" type="checkbox"> 离线推进</label></div>
+  <div id="follow" class="follow" aria-live="polite"></div>
 </section>
+<dialog id="journal" aria-labelledby="journalTitle">
+  <div class="journal-head"><h2 id="journalTitle">小镇手记</h2><button id="closeJournal" aria-label="关闭手记">×</button></div>
+  <div class="journal-body">
+    <section><h3>镇上的事</h3><p id="notice" role="status"></p><ol id="events"></ol></section>
+    <section><h3 id="memoryTitle">居民记忆</h3><ul id="memories"></ul></section>
+  </div>
+  <div class="save-controls"><button id="export">导出存档</button><button id="importButton">导入存档</button><input id="import" type="file" accept="application/json,.json" hidden><label><input id="offline" type="checkbox"> 离线推进</label></div>
+</dialog>
 </main>
 <script src="npc-memory.js"></script><script src="save-manager.js"></script><script src="world.js"></script><script src="town-map.js"></script><script src="ui.js"></script>
 </body></html>

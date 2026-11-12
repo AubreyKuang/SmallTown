@@ -39,12 +39,16 @@ const Town = (() => {
     ]);
     a.trust[b.id]=Math.max(-100,Math.min(100,(a.trust[b.id]||0)+Math.round(emotion*12)));
   }
+  const workStartTick=p=>18+p.id%3;
   function schedule(w,p) {
     const h=w.tick%48/2;
     if(w.power&&h>=18&&h<22)return 'square';
     if(p.override?.until>w.tick)return p.override.place;
-    if(h<8||h>=22)return 'homes';
-    if(h<9||p.delay>w.tick)return 'station';
+    const leaves=7.5+(p.id%4)*.5, workStarts=workStartTick(p)/2;
+    const goesHome=21.5+(p.id%3)*.5;
+    if(h<leaves||h>=goesHome)return 'homes';
+    if(h<workStarts||p.delay>w.tick)return 'station';
+    if(h>=12&&h<13&&p.id%3===0)return 'square';
     if(h<17)return p.job;
     return p.habit;
   }
@@ -56,7 +60,7 @@ const Town = (() => {
     let parent;
     switch(kind){
       case 'delay':
-        p.delay=Math.max(w.tick+3,w.tick-w.tick%48+19);p.mood-=8;
+        p.delay=w.tick-w.tick%48+workStartTick(p)+1;p.mood-=8;
         parent=log(w,`${p.name} 耽搁了出门，原来的班车已经走了。`,null,'delay',[id]);
         w.pending.push({kind:'late',person:id,parent,at:p.delay});
         break;
@@ -89,12 +93,26 @@ const Town = (() => {
   function resolve(w,entry) {
     const p=w.people.find(person=>person.id===entry.person);
     if(entry.kind==='late'){
-      log(w,`${p.name} 到${places[p.job].name}时已经迟了半小时。`,entry.parent,'late',[p.id]);
+      if(p.delay<=0)return true;
+      if(p.place!==p.job&&w.tick<entry.at+4)return false;
+      const minutes=(w.tick-entry.at+1)*30;
+      const text=p.place===p.job?`${p.name} 到${places[p.job].name}时迟到了 ${minutes} 分钟。`:
+        `${p.name} 错过班车后，没能按原计划到岗。`;
+      log(w,text,entry.parent,'late',[p.id]);
       return true;
     }
     const peers=w.people.filter(other=>other!==p&&other.place===p.place&&other.place!=='homes');
-    const candidate=peers.find(other=>entry.kind==='meeting'||entry.kind==='loan'||other.temperament==='generous');
-    if(!candidate||(entry.place&&p.place!==entry.place))return w.tick>=entry.until;
+    const candidate=peers.find(other=>entry.kind==='meeting'
+      ? !(other.override?.until>w.tick)
+      : entry.kind==='loan'||other.temperament==='generous');
+    if(!candidate||(entry.place&&p.place!==entry.place)){
+      if(w.tick<entry.until)return false;
+      const text=entry.kind==='meeting'?`${p.name} 在${places[entry.place].name}待了一会儿，没遇到熟面孔。`:
+        entry.kind==='help'?`${p.name} 还没找到钥匙，只好先忙别的。`:
+        `中奖的消息还没传开，没人来找 ${p.name} 借钱。`;
+      log(w,text,entry.parent,'quiet',[p.id]);
+      return true;
+    }
     if(entry.kind==='meeting'){
       const text=`${p.name} 在${places[p.place].name}碰见按日程到这里的 ${candidate.name}。`;
       const id=log(w,text,entry.parent,'meeting',[p.id,candidate.id]);
@@ -113,6 +131,19 @@ const Town = (() => {
       memory(w,p,candidate,'loan',accepts?.4:-.25,text,id);
     }
     return true;
+  }
+  function localEncounter(w) {
+    const guests=w.people.filter(p=>['square','cafe','forest'].includes(p.place)&&!(p.override?.until>w.tick));
+    const order=(w.seed+Math.floor(w.tick/48)*11+w.tick%48)%Math.max(1,guests.length);
+    const a=guests[order];
+    if(!a)return;
+    const b=guests.slice(order+1).concat(guests.slice(0,order)).find(p=>p.place===a.place);
+    if(!b)return;
+    const text=`${a.name} 和 ${b.name} 在${places[a.place].name}聊了一会儿。`;
+    const id=log(w,text,null,'chat',[a.id,b.id]);
+    const comfortable=(a.trust[b.id]||0)>=0&&(b.trust[a.id]||0)>=0;
+    memory(w,a,b,'chat',comfortable?.28:-.18,`今天在${places[a.place].name}和 ${b.name} 聊了会儿`,id);
+    memory(w,b,a,'chat',comfortable?.28:-.18,`今天在${places[b.place].name}和 ${a.name} 聊了会儿`,id);
   }
   function step(w) {
     w.tick++;
@@ -133,6 +164,7 @@ const Town = (() => {
       p.mood=Math.max(0,Math.min(100,p.mood));
     }
     w.pending=w.pending.filter(entry=>w.tick<entry.at||!resolve(w,entry));
+    if(hour===25||hour===35)localEncounter(w);
     return w;
   }
   const valid=w=>Number.isInteger(w.tick)&&w.tick>=0&&Number.isInteger(w.seed)&&Array.isArray(w.events)
