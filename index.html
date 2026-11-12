@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#263e35">
 <title>上帝扔骰子 · 微光镇</title>
-<link rel="stylesheet" href="style.css?v=6">
+<link rel="stylesheet" href="style.css?v=8">
 </head>
 <body>
 <main class="game">
@@ -23,17 +23,19 @@
     <div class="map-top">
       <p class="map-hint" id="mapHint">点击地图上的居民</p>
       <div class="time-controls" aria-label="地图与时间控制">
-        <button id="homeView" aria-pressed="true" title="切换住宅剖面">屋内</button>
+        <button id="homeView" aria-pressed="true" title="切换全镇建筑剖面">屋内</button>
         <button id="auto" aria-pressed="false" aria-label="继续时间" title="继续时间">▶</button>
         <button id="speed" aria-label="切换速度" title="切换速度">1×</button>
         <button id="step" aria-label="推进半小时" title="推进半小时">▸|</button>
       </div>
     </div>
     <button id="openSchool" class="school-entry" aria-label="查看学校日常">学校 ›</button>
+    <button id="openRail" class="rail-entry" aria-label="查看列车时刻">列车 ›</button>
     <button id="momentPin" class="moment-pin" hidden aria-label="查看地图偶遇">✦</button>
     <button id="storyMarker" class="story-marker" hidden aria-label="查看镇务地点">✦</button>
     <button id="mapStory" class="map-story" hidden><span aria-hidden="true">✦</span><span id="mapStoryText"></span><span aria-hidden="true">›</span></button>
   </div>
+  <button id="openWish" class="wish-entry"><span aria-hidden="true">⚄</span><span id="wishPreview"></span><b>听心声 ›</b></button>
   <button class="town-board" id="openStories"><span class="board-icon" aria-hidden="true">✦</span><span><strong id="storyButtonTitle">镇务告示</strong><small id="storyButtonDetail"></small></span><span class="board-arrow" aria-hidden="true">›</span></button>
   <div class="dock">
     <div class="resident">
@@ -55,6 +57,14 @@
   </div>
   <div id="follow" class="follow" aria-live="polite"></div>
 </section>
+<dialog id="wish" aria-labelledby="wishTitle">
+  <div class="journal-head"><h2 id="wishTitle">居民的心愿</h2><button id="closeWish" aria-label="关闭心愿">×</button></div>
+  <div id="wishPanel" class="story-panel"></div>
+</dialog>
+<dialog id="rail" aria-labelledby="railTitle">
+  <div class="journal-head"><h2 id="railTitle">微光镇车站</h2><button id="closeRail" aria-label="关闭列车时刻">×</button></div>
+  <div id="railPanel" class="story-panel"></div>
+</dialog>
 <dialog id="moment" aria-labelledby="momentTitle">
   <div class="journal-head"><h2 id="momentTitle">小镇偶遇</h2><button id="closeMoment" aria-label="关闭偶遇">×</button></div>
   <div id="momentPanel" class="story-panel"></div>
@@ -72,5 +82,5 @@
   <div class="save-controls"><button id="export">导出存档</button><button id="importButton">导入存档</button><input id="import" type="file" accept="application/json,.json" hidden><label><input id="offline" type="checkbox"> 离线推进</label></div>
 </dialog>
 </main>
-<script src="npc-memory.js"></script><script src="save-manager.js"></script><script src="town-school.js"></script><script src="town-stories.js?v=5"></script><script src="town-routines.js?v=7"></script><script src="town-moments.js"></script><script src="world.js?v=7"></script><script src="town-homes.js?v=5"></script><script src="town-art.js?v=5"></script><script src="town-map.js?v=7"></script><script src="town-movement.js?v=7"></script><script src="ui.js?v=7"></script>
+<script src="npc-memory.js"></script><script src="save-manager.js"></script><script src="town-school.js"></script><script src="town-stories.js?v=5"></script><script src="town-routines.js?v=9"></script><script src="town-moments.js"></script><script src="town-rail.js"></script><script src="town-wishes.js"></script><script src="world.js?v=9"></script><script src="town-homes.js?v=5"></script><script src="town-interiors.js"></script><script src="town-art.js?v=8"></script><script src="town-map.js?v=8"></script><script src="town-movement.js?v=8"></script><script src="ui.js?v=9"></script>
 </body></html>

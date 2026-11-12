@@ -2,8 +2,8 @@ const assert = require('node:assert/strict');
 const {test} = require('node:test');
 const {readFileSync} = require('node:fs');
 const vm = require('node:vm');
-const source=['npc-memory.js','save-manager.js','town-school.js','town-stories.js','town-routines.js','town-moments.js','world.js','town-homes.js','town-map.js','town-movement.js'].map(name=>readFileSync(require('node:path').join(__dirname,'..',name),'utf8')).join('\n');
-const {Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments}=vm.runInNewContext(source+'\n({Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments})');
+const source=['npc-memory.js','save-manager.js','town-school.js','town-stories.js','town-routines.js','town-moments.js','town-rail.js','town-wishes.js','world.js','town-homes.js','town-interiors.js','town-map.js','town-movement.js'].map(name=>readFileSync(require('node:path').join(__dirname,'..',name),'utf8')).join('\n');
+const {Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes}=vm.runInNewContext(source+'\n({Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes})');
 function to(w,t){while(w.tick<t)Town.step(w);}
 function visualRandom(seed){
   return ()=>{
@@ -319,4 +319,69 @@ test('people can match walking pace and stop for a conversation that becomes a m
   assert.ok(chat);
   assert.ok(chat.ids.every(id=>NPCMemory.recall(w,id).some(memory=>memory.type==='road-talk')));
   assert.equal(Town.roadTalk(w,...chat.ids),false);
+});
+test('public buildings have indoor stops and use their entrances to move between street and room',()=>{
+  const w=Town.create(8);
+  for(const [i,[place,activity]] of [['bakery','work'],['cafe','coffee'],['market','shop'],['station','work'],['school','class']].entries()){
+    Object.assign(w.people[i],{place,activity});
+  }
+  const crowd=TownMovement.create(w,visualRandom(4));
+  for(const pin of crowd.pins().filter(p=>p.resident.id<=5)){
+    assert.ok(pin.indoors&&TownInteriors.contains(pin.place,pin.x,pin.y));
+  }
+  const worker=w.people[3];
+  worker.activity='commute';
+  for(let i=0;i<300;i++)crowd.advance(.05,false);
+  const pin=crowd.pins().find(p=>p.resident.id===worker.id);
+  assert.equal(pin.place,'station');
+  assert.equal(pin.indoors,false);
+  const entry=TownInteriors.entry('station');
+  const [x,y]=TownInteriors.stops('station')[0];
+  const path=TownMap.route(pin,{place:'station',x,y});
+  assert.deepEqual(path.slice(1,3),entry);
+});
+test('train arrival, boarding, and return traffic follow the same timetable',()=>{
+  const morning=TownRail.services(0)[0],{start,arrivals,departures}=morning;
+  assert.equal(TownRail.train(start,0).phase,'approach');
+  assert.ok(TownRail.train(start,.7).nose<TownRail.train(start,0).nose);
+  assert.equal(TownRail.train(start+1,.3).nose,TownRail.train(start+1,.8).nose);
+  assert.ok(TownRail.train(start+2,.7).nose<TownRail.train(start+2,.2).nose);
+  assert.equal(TownRail.train(start+3,0),null);
+  assert.equal(TownRail.passengers(start+1,.5).filter(p=>p.phase==='alight').length,arrivals);
+  assert.equal(TownRail.passengers(start+1,.66).filter(p=>p.phase==='board').length,departures);
+  const guests=TownRail.passengers(start+6,0).filter(p=>p.phase==='visit');
+  assert.equal(guests.length,arrivals);
+  const w=Town.create(8);to(w,start+2);
+  assert.deepEqual(w.events.filter(e=>e.type==='rail').map(e=>e.tick).join(','),`${start+1},${start+2}`);
+});
+test('wish dice preserve the resident’s hesitation on a low roll and a solo attempt on a middle roll',()=>{
+  const low=Town.create(0);to(low,17);
+  const root=Town.rollWish(low,1);
+  assert.ok(root);
+  assert.equal(TownWishes.state(low,1).die,2);
+  assert.equal(low.tokens,2);
+  assert.equal(Town.rollWish(low,1),null);
+  assert.match(low.events.find(e=>e.parent===root).text,/把话咽了回去/);
+  const middle=Town.create(1000);to(middle,17);
+  assert.ok(Town.rollWish(middle,1));
+  assert.equal(TownWishes.state(middle,1).die,4);
+  to(middle,39);
+  assert.equal(TownWishes.state(middle,1).stage,0);
+  assert.match(TownWishes.state(middle,1).latest,/没有碰上/);
+});
+test('a strong roll creates an opportunity, respects distrust, and survives a round trip',()=>{
+  const w=Town.create(1200);to(w,17);
+  const root=Town.rollWish(w,1),state=TownWishes.state(w,1);
+  assert.equal(state.die,5);
+  const restored=JSON.parse(JSON.stringify(w));
+  assert.ok(Town.valid(restored));
+  const refused=JSON.parse(JSON.stringify(w));
+  refused.people.find(p=>p.id===2).trust[1]=-90;
+  to(w,39);to(restored,39);to(refused,39);
+  assert.equal(JSON.stringify(w),JSON.stringify(restored));
+  assert.equal(state.stage,1);
+  assert.match(TownWishes.thought(w,w.people[0],w.people[0].activity),/糖放多了/);
+  assert.equal(w.events.filter(e=>e.parent===root&&e.type==='wish-result').length,1);
+  assert.equal(TownWishes.state(refused,1).stage,0);
+  assert.ok(NPCMemory.recall(w,1).some(m=>m.type==='wish-progress'));
 });

@@ -8,9 +8,10 @@ const TownMovement = (() => {
     const distance=(x,y,[tx,ty])=>Math.hypot(x-tx,y-ty);
     const privateActivities=new Set(['sleep','class','teach','prepare','indoorRecess']);
 
-    function pickStop(place,walker,nearby=false){
+    const publicStops=(place,activity)=>TownInteriors.uses(place,activity)?TownInteriors.stops(place):TownMap.stops[place];
+    function pickStop(pool,walker,nearby=false){
       const neighbors=walkers.filter(other=>other!==walker);
-      const free=TownMap.stops[place].filter(point=>!neighbors.some(other=>other.stop===point));
+      const free=pool.filter(point=>!neighbors.some(other=>other.stop===point));
       const spaced=free.filter(point=>!neighbors.some(other=>distance(other.x,other.y,point)<14 ||
         distance(...other.stop,point)<14));
       const options=spaced.length?spaced:free;
@@ -23,8 +24,9 @@ const TownMovement = (() => {
 
     for(const resident of world.people){
       const activity=Town.activity(world,resident);
+      const pool=publicStops(resident.place,activity);
       const stop=resident.place==='homes'?TownHomes.stops(resident.id,activity)[0]:
-        pickStop(resident.place)??TownMap.stops[resident.place][resident.id%TownMap.stops[resident.place].length];
+        pickStop(pool)??pool[resident.id%pool.length];
       walkers.push({resident,place:resident.place,x:stop[0],y:stop[1],stop,
         activity,pace:(32+random()*14)*(TownSchool.student(resident)?.9:1),wait:random()*1.4,
         stride:random()*Math.PI*2,cooldown:0});
@@ -34,10 +36,11 @@ const TownMovement = (() => {
       const previous=walker.journey;
       const local=!previous?.transit&&place===walker.place;
       const home=place==='homes';
-      const points=home?TownHomes.stops(walker.resident.id,activity):null;
-      const stop=home?points[Math.floor(random()*points.length)]:pickStop(place,walker,local);
-      if(stop===walker.stop&&local){walker.wait=.45+random()*.8;return;}
-      const destination=!home&&stop===walker.stop?TownMap.stops[place][walker.resident.id%TownMap.stops[place].length]:stop;
+      const points=home?TownHomes.stops(walker.resident.id,activity):publicStops(place,activity);
+      const sameArea=TownInteriors.uses(place,activity)===TownInteriors.contains(place,walker.x,walker.y);
+      const stop=home?points[Math.floor(random()*points.length)]:pickStop(points,walker,local&&sameArea);
+      if(stop===walker.stop&&local&&sameArea){walker.wait=.45+random()*.8;return;}
+      const destination=!home&&stop===walker.stop?points[walker.resident.id%points.length]:stop;
       const [x,y]=destination;
       const target={place,x,y};
       const path=previous?.transit?TownMap.reroute(walker,target,previous):TownMap.plan(TownMap.route(walker,target));
@@ -46,7 +49,8 @@ const TownMovement = (() => {
       walker.journey={path,place,activity,traveled:0,speed,transit:!local};
     }
 
-    const inside=w=>(w.place==='homes'||w.journey?.place==='homes')&&TownHomes.contains(w.resident.id,w.x,w.y);
+    const atHome=w=>(w.place==='homes'||w.journey?.place==='homes')&&TownHomes.contains(w.resident.id,w.x,w.y);
+    const inside=w=>atHome(w)||TownInteriors.contains(w.place,w.x,w.y)||TownInteriors.contains(w.journey?.place,w.x,w.y);
     function heading(w){
       const trip=w.journey;
       if(!trip?.path.total)return null;
@@ -67,7 +71,7 @@ const TownMovement = (() => {
     }
     function meet(){
       if(groups.size>=4)return;
-      const candidates=walkers.filter(w=>!w.group&&w.cooldown<=0&&!privateActivities.has(w.activity)&&!inside(w));
+      const candidates=walkers.filter(w=>!w.group&&w.cooldown<=0&&!privateActivities.has(w.activity)&&!atHome(w));
       const startIndex=Math.floor(random()*candidates.length);
       const available=candidates.slice(startIndex).concat(candidates.slice(0,startIndex));
       for(let i=0;i<available.length;i++){
@@ -75,6 +79,7 @@ const TownMovement = (() => {
         for(const b of available.slice(i+1)){
           const dist=distance(a.x,a.y,[b.x,b.y]);
           if(dist<8||dist>32)continue;
+          if(inside(a)!==inside(b)||inside(a)&&a.place!==b.place)continue;
           if(TownSchool.student(a.resident)!==TownSchool.student(b.resident)&&
             TownSchool.household(a.resident.id)!==TownSchool.household(b.resident.id))continue;
           const sameWay=alignment(a,b)>.85;
@@ -106,8 +111,9 @@ const TownMovement = (() => {
           const activity=Town.activity(world,walker.resident);
           if(walker.place!==walker.resident.place)start(walker,walker.resident.place,activity);
           else if(walker.activity!==activity){
+            const changesRoom=TownInteriors.uses(walker.place,walker.activity)!==TownInteriors.uses(walker.place,activity);
             walker.activity=activity;
-            if(walker.place==='homes')start(walker,walker.place,activity);
+            if(walker.place==='homes'||changesRoom)start(walker,walker.place,activity);
           }else if(roam&&walker.wait<=0)start(walker,walker.place,activity);
         }
         const trip=walker.journey;

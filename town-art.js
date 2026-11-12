@@ -157,7 +157,7 @@ const TownArt=(()=>{
       stroke([[x+6,y],[x+6,y+4]],'#75654e',1.6);
     }
   }
-  function school(ctx,lit,{polygon,ellipse,line}){
+  function school(ctx,lit,{polygon,ellipse,line},interiors){
     const box=(x,y,w,h,color)=>{ctx.fillStyle=color;ctx.fillRect(x,y,w,h);};
     const stroke=(points,color,width)=>line(ctx,points,color,width);
     ellipse(ctx,718,97,66,12,'#3e533750');
@@ -165,12 +165,21 @@ const TownArt=(()=>{
     polygon(ctx,[[775,51],[789,45],[789,86],[775,95]],'#86694f');
     polygon(ctx,[[654,55],[684,33],[762,33],[789,45],[778,56]],'#786987');
     stroke([[654,55],[684,33],[762,33]],'#b4a4b6',2);
-    box(670,58,100,34,lit?'#f0c78c':'#e7cea1');
-    box(680,63,37,12,'#426656');
-    stroke([[685,69],[694,69],[697,66],[708,68]],'#dfebbf',1);
-    box(745,62,16,11,'#799f9b');stroke([[753,62],[753,73]],'#ebdba8',1);
-    for(const x of [686,711,736,759]){
-      box(x-4,79,8,4,'#af865e');box(x-2,77,5,2,'#f6edd3');box(x-3,84,6,4,'#956e56');
+    if(interiors){
+      box(670,58,100,34,lit?'#f0c78c':'#e7cea1');
+      box(680,63,37,12,'#426656');
+      stroke([[685,69],[694,69],[697,66],[708,68]],'#dfebbf',1);
+      box(745,62,16,11,'#799f9b');stroke([[753,62],[753,73]],'#ebdba8',1);
+      for(const x of [686,711,736,759]){
+        box(x-4,79,8,4,'#af865e');box(x-2,77,5,2,'#f6edd3');box(x-3,84,6,4,'#956e56');
+      }
+    }else{
+      box(668,57,103,36,'#e0ba87');
+      box(719,71,13,23,'#886451');
+      for(const x of [680,700,741,757]){
+        box(x,65,11,14,'#806551');box(x+2,67,7,10,lit?'#ffd493':'#7d9f98');
+        stroke([[x+5,67],[x+5,77]],'#f0d1a1');
+      }
     }
     box(671,90,98,3,'#82634e');
     stroke([[654,95],[654,61]],'#6c6256',2);
@@ -185,7 +194,7 @@ const TownArt=(()=>{
     }
     ellipse(ctx,905,82,6,2,'#b48b64');ellipse(ctx,905,79,3,4,'#7c9c6a');
   }
-  function keepsakes(ctx,collection,night,{polygon,ellipse,line}){
+  function keepsakes(ctx,collection,night,{polygon,ellipse,line},interiors=true){
     const oval=(x,y,w,h,color)=>ellipse(ctx,x,y,w,h,color);
     const stroke=(points,color,width)=>line(ctx,points,color,width);
     for(const key of collection){
@@ -202,10 +211,10 @@ const TownArt=(()=>{
       }else if(key===6){
         line(ctx,[[888,102],[912,103]],'#956944',7);
         for(let x=889;x<914;x+=7){ellipse(ctx,x,100,2,4,'#6c8c57');ellipse(ctx,x,97,2,2,'#eec783');}
-      }else if(key===7){
+      }else if(key===7&&interiors){
         line(ctx,[[757,63],[767,63]],'#865e45',6);
         for(let x=754;x<768;x+=3)line(ctx,[[x,60],[x,64]],x%2?'#87a080':'#db9d6f',2);
-      }else{
+      }else if(key<6){
         const [x,y]=[[845,481],[650,235],[192,449],[490,397]][key-2];
         stroke([[x-6,y],[x-6,y+12]],'#6b5643',2);stroke([[x+6,y],[x+6,y+12]],'#6b5643',2);
         stroke([[x-9,y-2],[x+9,y-2]],['#946a50','#a76553','#a77b54','#a87666'][key-2],10);

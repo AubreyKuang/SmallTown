@@ -5,7 +5,7 @@ const TownRoutines=(()=>{
     sleep:'在家睡觉',breakfast:'在家准备早餐',read:'在家看书',cook:'在家做饭',rest:'在家休息',
     walk:'散步',coffee:'喝咖啡',shop:'买东西',lunch:'吃午饭',work:'在上班',commute:'等班车',
     teach:'正在上课',class:'听课',prepare:'准备上课',recess:'在操场玩',indoorRecess:'室内课间',homework:'在家写作业',play:'放学后玩耍',
-    stars:'在广场看星星',project:'准备镇务',visit:'临时改道'
+    stars:'在广场看星星',project:'准备镇务',visit:'临时改道',wish:'为自己的事留了时间'
   };
   const at=(place,activity)=>({place,activity});
   const hourTick=tick=>tick%48;

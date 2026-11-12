@@ -56,9 +56,17 @@ const TownMap = (() => {
     line(ctx,[[704,279],[683,242],[682,146],[708,112],[725,94]],'#e3cba0',13);
     line(ctx,[[708,112],[781,107],[827,111]],'#e3cba0',10);
     line(ctx,[[628,427],[716,464],[780,479]],'#ead6aa',19);
-    line(ctx,[[895,389],[894,502],[905,611]],'#76766a',19);
-    for(let y=390;y<620;y+=9)line(ctx,[[884,y],[908,y]],'#a29274',3);
-    line(ctx,[[889,390],[889,614]],'#535b55',2);line(ctx,[[902,390],[902,614]],'#535b55',2);
+    const railNodes=[309,388,625];
+    line(ctx,railNodes.map(y=>[TownRail.trackX(y),y]),'#777568',20);
+    line(ctx,[[901,518],[901,609]],'#7e6654',24);
+    for(let y=312;y<622;y+=8){
+      const x=TownRail.trackX(y);
+      line(ctx,[[x-11,y],[x+11,y+(y<388?5:0)]],'#ac9879',3);
+    }
+    for(const offset of [-6,6])line(ctx,railNodes.map(y=>[TownRail.trackX(y)+offset,y]),'#535955',2.4);
+    polygon(ctx,[[871,419],[890,419],[890,521],[875,521],[869,480]],'#ccb48b');
+    line(ctx,[[888,421],[888,519]],'#f7dd9f',2);
+    for(const y of [436,463,492])line(ctx,[[876,y],[884,y]],'#b29a70',1.5);
     for(let i=0;i<94;i++){
       const x=12+(i*163)%932,y=14+(i*109)%590;
       if((y>280&&y<322)||(y>490&&y<586))continue;
@@ -68,7 +76,8 @@ const TownMap = (() => {
     for(let i=0;i<17;i++)tree(ctx,50+(i*73)%260,369+(i*43)%126,.62+(i%4)*.13,i);
     for(const [x,y] of [[342,211],[303,284],[464,146],[691,170],[841,239],[463,388],[624,374],[718,460],[874,352],[372,432],[665,592]])tree(ctx,x,y,.85,x);
     TownArt.buildings(ctx,lit,{polygon,ellipse,line},interiors);
-    TownArt.school(ctx,lit,{polygon,ellipse,line});
+    if(interiors)TownInteriors.draw(ctx,lit,{ellipse,line});
+    TownArt.school(ctx,lit,{polygon,ellipse,line},interiors);
     ellipse(ctx,549,357,79,51,'#c3ab81');ellipse(ctx,547,352,74,47,'#eed4a6');
     ellipse(ctx,547,342,25,15,'#aa936c');ellipse(ctx,547,339,21,11,'#76aaa6');
     ellipse(ctx,545,337,7,4,'#c0ded1');
@@ -91,7 +100,7 @@ const TownMap = (() => {
   const street = [[244,315],[359,275],[430,272],[551,268],[704,279],[769,287]];
   // Street-side stops and open ground, kept clear of buildings, water and the fountain.
   const stops={
-    school:[[680,94],[698,102],[718,92],[735,100],[754,94],[771,99],[700,83],[724,79],[748,81],[761,84]],
+    school:[[680,101],[698,102],[718,105],[735,100],[754,104],[771,99]],
     schoolyard:[[810,76],[825,95],[839,77],[854,99],[870,73],[886,96],[900,76],[909,99],[816,110],[894,110]],
     bakery:[[365,270],[382,270],[398,268],[412,259],[426,246],[438,260],[456,266],[475,267],[393,242],[412,231],[441,231],[458,243],[487,270]],
     cafe:[[507,255],[527,265],[556,254],[576,247],[590,232],[605,247],[620,256],[635,265],[648,271],[570,269],[608,269],[548,238],[629,235],[644,248]],
@@ -112,6 +121,7 @@ const TownMap = (() => {
   function approach(pin,resident){
     if(pin.place==='homes')return TownHomes.approach(resident.id);
     const walk=entrances[pin.place].walk;
+    if(TownInteriors.contains(pin.place,pin.x,pin.y))return [...walk,...TownInteriors.entry(pin.place)];
     if(pin.place==='station'&&pin.x<715)return walk.slice(0,2);
     if(pin.place==='forest'&&pin.y<382)return [];
     return walk;
@@ -124,8 +134,11 @@ const TownMap = (() => {
   function route(from,to){
     const a=entrances[from.place],b=entrances[to.place];
     const start=[from.x,from.y],end=[to.x,to.y];
-    if(a===b)return [start,end];
-    if(['school','schoolyard'].includes(from.place)&&['school','schoolyard'].includes(to.place))return [start,[790,105],end];
+    const fromInside=TownInteriors.contains(from.place,...start),toInside=TownInteriors.contains(to.place,...end);
+    const exit=fromInside?TownInteriors.entry(from.place).reverse():[];
+    const enter=toInside?TownInteriors.entry(to.place):[];
+    if(a===b)return fromInside===toInside?[start,end]:[start,...exit,...enter,end];
+    if(['school','schoolyard'].includes(from.place)&&['school','schoolyard'].includes(to.place))return [start,...exit,[790,105],...enter,end];
     const lane=(from.resident.id%5-2)*3;
     return [start,...approach(from,from.resident).slice().reverse(),...streetBetween(a.junction,b.junction,lane),...approach(to,from.resident),end];
   }
@@ -236,13 +249,43 @@ const TownMap = (() => {
       }
     }
   }
-  function draw(ctx,world,selection,displayWidth,pins,choosingPlace,interiors,time=0){
+  function rollingStock(ctx,train){
+    if(!train)return;
+    for(const [i,offset] of [16,44,72].entries()){
+      const y=train.nose+offset,x=TownRail.trackX(y);
+      ctx.save();ctx.translate(x,y);
+      if(y<388)ctx.rotate(.69);
+      ellipse(ctx,2,3,13,16,'#4c49374a');
+      ctx.beginPath();ctx.roundRect(-10,-13,20,26,i===0?7:3);
+      ctx.fillStyle=i===0?'#a3504b':'#597969';ctx.fill();
+      ctx.strokeStyle='#543f39';ctx.lineWidth=1.5;ctx.stroke();
+      ctx.fillStyle=i===0?'#e0a06d':'#ead4a7';ctx.fillRect(-5,-9,11,18);
+      for(const py of [-7,1,7]){
+        ctx.fillStyle='#4e625d';ctx.fillRect(-9,py,3,4);ctx.fillRect(6,py,3,4);
+      }
+      if(i===0)ellipse(ctx,0,-12,2.8,2.8,'#f9dfa2');
+      if(train.phase==='platform'){
+        ctx.fillStyle='#493c36';ctx.fillRect(-10,2,4,7);
+        ctx.fillStyle='#eac891';ctx.fillRect(-11,8,5,2);
+      }
+      ctx.restore();
+    }
+  }
+  function draw(ctx,world,selection,displayWidth,pins,choosingPlace,interiors,time=0,progress=0){
     const labelScale=Math.min(1.8,Math.max(1,640/displayWidth));
     const hour=world.tick%48/2;
     const night=hour<6||hour>=20;
     ctx.drawImage(background(night,night&&!world.power,hour>=18,interiors),0,0);
-    TownArt.keepsakes(ctx,world.keepsakes??[],night,{polygon,ellipse,line});
+    TownArt.keepsakes(ctx,world.keepsakes??[],night,{polygon,ellipse,line},interiors);
     atmosphere(ctx,world,time,night);
+    rollingStock(ctx,TownRail.train(world.tick,progress));
+    for(const traveler of TownRail.passengers(world.tick,progress)){
+      const {id,x,y,phase}=traveler;
+      const walking=['alight','walk','board'].includes(phase);
+      figure(ctx,{id},x,y,walking?Math.sin(time/110+id)*1.4:0,.85);
+      ctx.fillStyle='#96684e';ctx.fillRect(x+4,y+1,3.5,4);
+      line(ctx,[[x+4.6,y+1],[x+4.6,y],[x+6.2,y]],'#6a4e3b',.8);
+    }
     const moment=TownMoments.active(world);
     for(const {resident,x,y,step,indoors,activity,social,partner} of pins){
       if(indoors&&!interiors)continue;

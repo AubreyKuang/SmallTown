@@ -33,6 +33,7 @@ const Town = (() => {
       const required=new Set(w.pending.map(p=>p.parent));
       if(w.townStory)required.add(w.townStory.root);
       if(w.moment)required.add(w.moment.root);
+      for(const wish of Object.values(w.wishes??{}))if(wish.plan)required.add(wish.plan.root);
       for(const favor of w.favors??[])required.add(favor.root);
       const byId=new Map(w.events.map(e=>[e.id,e]));
       for(const id of [...required]){
@@ -73,9 +74,9 @@ const Town = (() => {
     const meetup=TownMoments.destination(w,p);
     if(meetup)return {place:meetup,activity:'visit'};
     const school=TownSchool.routine(w,p);
-    if(school)return school;
+    if(school)return TownWishes.destination(w,p,school);
     if(w.power&&(p.id%5===0||p.id%7===0)&&h>=19+(p.id%3)*.5&&h<21+(p.id%2)*.5)return {place:'square',activity:'stars'};
-    return TownRoutines.daily(w,p);
+    return TownWishes.destination(w,p,TownRoutines.daily(w,p));
   }
   function activity(w,p){
     if(Object.hasOwn(TownRoutines.labels,p.activity))return p.activity;
@@ -199,6 +200,9 @@ const Town = (() => {
     TownSchool.encounter(w,(...args)=>log(w,...args),(...args)=>memory(w,...args));
     if(TownStories.active(w))TownStories.settle(w,(...args)=>log(w,...args),(...args)=>memory(w,...args));
     TownMoments.step(w,(...args)=>log(w,...args),(...args)=>memory(w,...args));
+    TownWishes.step(w,(...args)=>log(w,...args),(...args)=>memory(w,...args));
+    const railNotice=TownRail.notice(w.tick);
+    if(railNotice)log(w,railNotice,null,'rail');
     return w;
   }
   const valid=w=>Number.isInteger(w.tick)&&w.tick>=0&&Number.isInteger(w.seed)&&Array.isArray(w.events)
@@ -206,10 +210,11 @@ const Town = (() => {
     &&new Set(w.people.map(p=>p.id)).size===w.people.length
     &&w.people.every(p=>Object.hasOwn(places,p.job)&&Object.hasOwn(places,p.habit)&&p.trust&&typeof p.trust==='object')
     &&Array.isArray(w.pending)&&w.pending.every(p=>['late','help','meeting','loan'].includes(p.kind)&&w.people.some(person=>person.id===p.person))
-    &&Number.isInteger(w.sequence)&&Number.isInteger(w.tokens)&&w.tokens>=0&&w.tokens<=3&&TownStories.valid(w)&&TownMoments.valid(w);
+    &&Number.isInteger(w.sequence)&&Number.isInteger(w.tokens)&&w.tokens>=0&&w.tokens<=3&&TownStories.valid(w)&&TownMoments.valid(w)&&TownWishes.valid(w);
   const startStory=(w,plan,helper,school)=>TownStories.start(w,plan,helper,(...args)=>log(w,...args),school);
   const inviteStory=w=>TownStories.invite(w,(...args)=>log(w,...args));
   const chooseMoment=(w,root,mode)=>TownMoments.choose(w,root,mode,(...args)=>log(w,...args),(...args)=>memory(w,...args));
+  const rollWish=(w,id)=>TownWishes.roll(w,id,()=>random(w),(...args)=>log(w,...args));
   const forecast=(w,p,tick)=>schedule({...w,tick,power:tick-w.tick<4&&w.power},p).place;
-  return {create,step,influence,places,valid,startStory,inviteStory,forecast,activity,canAct,upgrade,chooseMoment,roadTalk};
+  return {create,step,influence,places,valid,startStory,inviteStory,forecast,activity,canAct,upgrade,chooseMoment,roadTalk,rollWish};
 })();
