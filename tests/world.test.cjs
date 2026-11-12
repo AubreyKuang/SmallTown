@@ -25,7 +25,7 @@ test('redirect only meets residents who were scheduled at the destination',()=>{
   assert.equal(quiet?.parent,empty.events.find(e=>e.type==='visit').id);
 });
 test('staggered commuters animate along the street after their destination changes',()=>{
-  const w=Town.create(8);to(w,TownRoutines.shift(w.people[0],0).start-2);
+  const w=Town.create(8);to(w,TownRoutines.shift(w.people[0],0).start-4);
   const crowd=TownMovement.create(w,visualRandom(12));
   const from=crowd.pins().find(pin=>pin.resident.id===1);
   Town.step(w);
@@ -37,7 +37,7 @@ test('staggered commuters animate along the street after their destination chang
   const mid=crowd.pins().find(pin=>pin.resident.id===1);
   assert.equal(mid.place,'homes');
   assert.ok(mid.x!==from.x||mid.y!==from.y);
-  for(let i=0;i<120;i++)crowd.advance(.05,false);
+  for(let i=0;i<700;i++)crowd.advance(.05,false);
   const target=crowd.pins().find(pin=>pin.resident.id===1);
   assert.equal(target.place,'station');
   assert.equal(target.indoors,false);
@@ -269,4 +269,54 @@ test('a booked reunion can be missed or rescued by an actual same-place arrival'
   assert.ok(Town.influence(alternate,b,'visit',place));
   Town.step(alternate);
   assert.equal(alternate.moment.success,true);
+});
+test('slower walkers can reroute in mid-journey without jumping or visiting the old destination',()=>{
+  const w=Town.create(8),p=w.people[0];
+  const crowd=TownMovement.create(w,visualRandom(12));
+  const pin=()=>crowd.pins().find(item=>item.resident.id===p.id);
+  p.place='station';p.activity='commute';
+  for(let i=0;i<140;i++)crowd.advance(.05,false);
+  const before=pin();
+  assert.equal(before.movingTo,'station');
+  assert.equal(before.indoors,false);
+  p.place='cafe';p.activity='coffee';
+  crowd.advance(.05,false);
+  assert.equal(pin().movingTo,'cafe');
+  assert.ok(Math.hypot(pin().x-before.x,pin().y-before.y)<=46*.05+.001);
+  for(let i=0;i<700;i++){
+    crowd.advance(.05,false);
+    assert.notEqual(pin().place,'station');
+  }
+  assert.equal(pin().place,'cafe');
+});
+test('people can match walking pace and stop for a conversation that becomes a memory',()=>{
+  const w=Town.create(8);to(w,17);
+  const crowd=TownMovement.create(w,visualRandom(3),(a,b)=>Town.roadTalk(w,a,b));
+  let sharedSteps=0,talkingStops=0;
+  for(let i=0;i<1500;i++){
+    if(i>0&&i%144===0)Town.step(w);
+    const before=new Map(crowd.pins().map(p=>[p.resident.id,p]));
+    crowd.advance(.05);
+    const after=crowd.pins(),byId=new Map(after.map(p=>[p.resident.id,p]));
+    for(const p of after){
+      const old=before.get(p.resident.id);
+      const moved=Math.hypot(p.x-old.x,p.y-old.y);
+      assert.ok(moved<=46*.05+.001);
+      if(p.social==='walk'&&old.partner===p.partner&&moved>0){
+        const peer=byId.get(p.partner),previous=before.get(p.partner);
+        assert.equal(peer.partner,p.resident.id);
+        if(Math.hypot(peer.x-previous.x,peer.y-previous.y)>0)sharedSteps++;
+      }
+      if(p.social==='talk'&&old.social==='talk'&&old.partner===p.partner){
+        assert.equal(moved,0);
+        talkingStops++;
+      }
+    }
+  }
+  assert.ok(sharedSteps>50);
+  assert.ok(talkingStops>50);
+  const chat=w.events.find(e=>e.type==='road-talk');
+  assert.ok(chat);
+  assert.ok(chat.ids.every(id=>NPCMemory.recall(w,id).some(memory=>memory.type==='road-talk')));
+  assert.equal(Town.roadTalk(w,...chat.ids),false);
 });

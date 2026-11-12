@@ -116,15 +116,39 @@ const TownMap = (() => {
     if(pin.place==='forest'&&pin.y<382)return [];
     return walk;
   }
+  function streetBetween(start,end,lane){
+    const points=street.slice(Math.min(start,end),Math.max(start,end)+1);
+    if(start>end)points.reverse();
+    return points.map(([x,y])=>[x,y+lane]);
+  }
   function route(from,to){
     const a=entrances[from.place],b=entrances[to.place];
     const start=[from.x,from.y],end=[to.x,to.y];
     if(a===b)return [start,end];
     if(['school','schoolyard'].includes(from.place)&&['school','schoolyard'].includes(to.place))return [start,[790,105],end];
-    const middle=street.slice(Math.min(a.junction,b.junction),Math.max(a.junction,b.junction)+1);
-    if(a.junction>b.junction)middle.reverse();
     const lane=(from.resident.id%5-2)*3;
-    return [start,...approach(from,from.resident).slice().reverse(),...middle.map(([x,y])=>[x,y+lane]),...approach(to,from.resident),end];
+    return [start,...approach(from,from.resident).slice().reverse(),...streetBetween(a.junction,b.junction,lane),...approach(to,from.resident),end];
+  }
+  function reroute(walker,to,trip){
+    const {points,lengths}=trip.path;
+    const start=[walker.x,walker.y],end=[to.x,to.y];
+    const lane=(walker.resident.id%5-2)*3;
+    let distance=0,segment=0,best;
+    for(let i=0;i<lengths.length&&distance+lengths[i]<=trip.traveled;i++){
+      distance+=lengths[i];segment=i+1;
+    }
+    for(const [i,[x,y]] of points.entries()){
+      const junction=street.findIndex(([sx,sy])=>x===sx&&y===sy+lane);
+      if(junction<0)continue;
+      const entry=i<=segment?points.slice(i,segment+1).reverse():points.slice(segment+1,i+1);
+      const path=plan([start,...entry,...streetBetween(junction,entrances[to.place].junction,lane).slice(1),
+        ...approach(to,walker.resident),end]);
+      if(!best||path.total<best.total)best=path;
+    }
+    if(best)return best;
+    // Short campus paths have no road junction. Finish that path before taking its exit.
+    const [x,y]=points.at(-1);
+    return plan([start,...points.slice(segment+1),...route({...walker,place:trip.place,x,y},to).slice(1)]);
   }
   function plan(points){
     const lengths=points.slice(1).map(([x,y],i)=>Math.hypot(x-points[i][0],y-points[i][1]));
@@ -141,6 +165,12 @@ const TownMap = (() => {
       remaining-=length;
     }
     return path.points.at(-1);
+  }
+  function conversation(ctx,x,y,time){
+    ctx.fillStyle='#fff2d6';ctx.strokeStyle='#9b7754';ctx.lineWidth=1;
+    ctx.beginPath();ctx.roundRect(x-9,y-31,18,11,4);ctx.fill();ctx.stroke();
+    polygon(ctx,[[x-3,y-21],[x+1,y-21],[x-3,y-17]],'#fff2d6');
+    for(let i=0;i<3;i++)ellipse(ctx,x-4+i*4,y-25,1.1,1.1,Math.floor(time/240)%3===i?'#573e32':'#b78d60');
   }
   function figure(ctx,resident,x,y,step=0,scale=1){
     ctx.save();ctx.translate(x,y);ctx.scale(scale,scale);
@@ -214,13 +244,14 @@ const TownMap = (() => {
     TownArt.keepsakes(ctx,world.keepsakes??[],night,{polygon,ellipse,line});
     atmosphere(ctx,world,time,night);
     const moment=TownMoments.active(world);
-    for(const {resident,x,y,step,indoors,activity} of pins){
+    for(const {resident,x,y,step,indoors,activity,social,partner} of pins){
       if(indoors&&!interiors)continue;
       if(moment&&(resident.id===moment.a||resident.id===moment.b)){
         ctx.beginPath();ctx.ellipse(x,y+3,10+Math.sin(time/250)*1.5,5,0,0,Math.PI*2);
         ctx.strokeStyle='#fff2ad';ctx.lineWidth=1.4;ctx.stroke();
       }
       if(resident.id===selection)ellipse(ctx,x,y+3,indoors?7:10,indoors?4:6,'#f9d17a');
+      if(social==='walk')ellipse(ctx,x,y+3,8,4,'#b7e1ca99');
       if(indoors&&activity==='sleep'&&!step){
         ellipse(ctx,x+2,y+1,5,3,color(resident.id));ellipse(ctx,x-3,y,2.6,2.6,'#f4c695');
       }else figure(ctx,resident,x,y,step,(indoors?.74:1)*(TownSchool.student(resident)?.77:1));
@@ -247,7 +278,13 @@ const TownMap = (() => {
       ctx.beginPath();ctx.roundRect(active.x-w/2,active.y-21-10*labelScale,w,19*labelScale,5);ctx.fillStyle='#344b3b';ctx.fill();
       ctx.fillStyle='#fff4d4';ctx.fillText(active.resident.name,active.x,active.y-21);
     }
+    for(const {resident,x,y,social,partner} of pins){
+      if(social!=='talk'||resident.id>=partner)continue;
+      const other=pins.find(pin=>pin.resident.id===partner);
+      const labelClearance=selection===resident.id||selection===partner?18:0;
+      conversation(ctx,(x+other.x)/2,Math.min(y,other.y)-labelClearance,time);
+    }
     return pins;
   }
-  return { draw, stops, portrait, route, plan, position, findPlace, marker };
+  return { draw, stops, portrait, route, reroute, plan, position, findPlace, marker };
 })();

@@ -46,11 +46,24 @@ const Town = (() => {
     }
     return event.id;
   }
-  function memory(w,a,b,kind,emotion,text,source) {
+  function memory(w,a,b,kind,emotion,text,source,impact=85) {
     NPCMemory.record(w,{type:kind,time:w.tick,participants:[a.id,b.id],source},[
-      {person:a.id,subject:b.id,emotion,impact:85,interpretation:text}
+      {person:a.id,subject:b.id,emotion,impact,interpretation:text}
     ]);
     a.trust[b.id]=Math.max(-100,Math.min(100,(a.trust[b.id]||0)+Math.round(emotion*12)));
+  }
+  function roadTalk(w,first,second){
+    const a=w.people.find(p=>p.id===first),b=w.people.find(p=>p.id===second);
+    if(!a||!b||a===b)return false;
+    const recent=w.events.filter(e=>e.type==='road-talk'&&e.tick>=w.tick-w.tick%48);
+    if(recent.some(e=>e.ids.includes(first)&&e.ids.includes(second))||recent.filter(e=>e.tick===w.tick).length>=2)return false;
+    const topic=TownSchool.student(a)&&TownSchool.student(b)?'聊了几句学校里的事':
+      w.weather==='晴朗'?['聊了聊接下来要去哪儿','交换了几句小镇近况','聊起了今天的日程'][(first+second+w.tick)%3]:
+        '聊了聊今天的天气';
+    const source=log(w,`${a.name} 和 ${b.name} 路上停了一会儿，${topic}。`,null,'road-talk',[first,second]);
+    memory(w,a,b,'road-talk',.24,`路上碰见 ${b.name}，我们${topic}。`,source,45);
+    memory(w,b,a,'road-talk',.24,`路上碰见 ${a.name}，我们${topic}。`,source,45);
+    return true;
   }
   function schedule(w,p) {
     const h=w.tick%48/2;
@@ -198,5 +211,5 @@ const Town = (() => {
   const inviteStory=w=>TownStories.invite(w,(...args)=>log(w,...args));
   const chooseMoment=(w,root,mode)=>TownMoments.choose(w,root,mode,(...args)=>log(w,...args),(...args)=>memory(w,...args));
   const forecast=(w,p,tick)=>schedule({...w,tick,power:tick-w.tick<4&&w.power},p).place;
-  return {create,step,influence,places,valid,startStory,inviteStory,forecast,activity,canAct,upgrade,chooseMoment};
+  return {create,step,influence,places,valid,startStory,inviteStory,forecast,activity,canAct,upgrade,chooseMoment,roadTalk};
 })();

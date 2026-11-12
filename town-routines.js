@@ -49,7 +49,7 @@ const TownRoutines=(()=>{
         }
         return at(p.job,'work');
       }
-      if(work.bus&&time===work.start-1)return at('station','commute');
+      if(work.bus&&time<work.start&&time>=Math.min(work.start-1,Math.max(18,work.start-3)))return at('station','commute');
     }
     if(time<firstBreak){
       if(time>=work.start-3&&p.id%5===0&&!work.off)return at('cafe','coffee');

@@ -16,7 +16,8 @@ let draftPlan=0,draftHelper=null,shownOffer=-1;
 let animationTime=0;
 let schoolBoard=false;
 let interiors=localStorage.getItem(KEY+':interiors')!=='off';
-let crowd=TownMovement.create(world),mapPins=crowd.pins();
+let heardConversation=false;
+let crowd=createCrowd(),mapPins=crowd.pins();
 let seenStory=world.sequence;
 let watched=Number.isInteger(world.watchedEvent)?world.watchedEvent:null;
 const save=()=>SaveManager.save(localStorage,KEY,{...world,watchedEvent:watched,savedAt:Date.now()},Town.valid);
@@ -59,13 +60,20 @@ function paint(){
   const pin=mapPins.find(walker=>walker.resident.id===p.id);
   const place=p.place==='homes'?'家':Town.places[p.place].name;
   const label=TownRoutines.labels[Town.activity(world,p)];
-  const activity=pin?.place!==p.place?`去${place}的路上`:p.place==='homes'&&label.startsWith('在家')?label:`${place} · ${label}`;
+  const companion=pin?.partner&&world.people.find(other=>other.id===pin.partner);
+  const activity=companion?`和 ${companion.name} ${pin.social==='talk'?'聊天':'同行'}`:
+    pin?.movingTo||pin?.place!==p.place?`去${place}的路上`:p.place==='homes'&&label.startsWith('在家')?label:`${place} · ${label}`;
   const bio=`${activity} · 心情 ${p.mood} · ${p.money} 元${p.questioned?' · 察觉异常':''}`;
   if($('bio').textContent!==bio)$('bio').textContent=bio;
   TownMap.draw(ctx,world,p.id,canvas.clientWidth,mapPins,choosingPlace,interiors,animationTime);
 }
+function createCrowd(){
+  return TownMovement.create(world,Math.random,(a,b)=>{
+    if(Town.roadTalk(world,a,b))heardConversation=true;
+  });
+}
 function resetCrowd(){
-  crowd=TownMovement.create(world);
+  crowd=createCrowd();
   mapPins=crowd.pins();
 }
 function refreshMotion(){
@@ -76,10 +84,11 @@ function refreshMotion(){
 function animate(now){
   frame=null;
   if(lastFrame!==null){
-    crowd.advance(Math.min(.05,(now-lastFrame)/1000)*(fast?3:1),running);
+    crowd.advance(Math.min(.05,(now-lastFrame)/1000)*(fast?1.25:1),running);
     animationTime+=Math.min(50,now-lastFrame);
     mapPins=crowd.pins();
-    paint();
+    if(heardConversation){heardConversation=false;save();render();}
+    else paint();
   }
   lastFrame=now;
   refreshMotion();
@@ -342,7 +351,7 @@ function advance(){
   if(motion.matches)resetCrowd();
   save();render();
 }
-function scheduleNext(delay=fast?1200:3600){
+function scheduleNext(delay=fast?2400:7200){
   clearTimeout(timer);
   if(running&&!document.hidden&&!modalOpen())timer=setTimeout(()=>{advance();scheduleNext();},delay);
 }
@@ -371,7 +380,7 @@ function openJournal(){
   clearTimeout(timer);
   refreshMotion();
 }
-$('step').onclick=()=>{advance();manualUntil=performance.now()+5500;scheduleNext();refreshMotion();};
+$('step').onclick=()=>{advance();manualUntil=performance.now()+7200;scheduleNext();refreshMotion();};
 $('auto').onclick=()=>setRunning(!running);
 $('speed').onclick=()=>{fast=!fast;$('speed').textContent=fast?'3×':'1×';scheduleNext();};
 function showHomeMode(){
