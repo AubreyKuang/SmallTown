@@ -9,6 +9,7 @@ const TownMap = (() => {
     forest:{x:228,y:416,labelY:465}, school:{x:718,y:70,labelY:21}, schoolyard:{x:871,y:89,labelY:128}
   };
   const color = id => colors[(id - 1) % colors.length];
+  const river=[[0,561],[140,514],[279,522],[381,474],[468,482],[574,538],[715,558],[830,572],[960,541]];
   function polygon(ctx,points,fill){
     ctx.beginPath();ctx.moveTo(...points[0]);
     for(const point of points.slice(1))ctx.lineTo(...point);
@@ -39,7 +40,6 @@ const TownMap = (() => {
     for(let i=0;i<46;i++){
       ellipse(ctx,(i*211)%991,(i*137)%643,48+(i%4)*17,19+(i%3)*7,i%2?'#9ab57938':'#d9d9a255');
     }
-    const river=[[0,561],[140,514],[279,522],[381,474],[468,482],[574,538],[715,558],[830,572],[960,541]];
     line(ctx,river,'#e2d6a2',72);line(ctx,river,'#6ba6a6',57);line(ctx,river,'#86bbba',36);
     for(let i=0;i<37;i++){
       const a=river[i%8],b=river[i%8+1],f=((i*31)%97)/100;
@@ -181,14 +181,45 @@ const TownMap = (() => {
     const {x,y}=locations[place];
     return {left:(x+47)/9.6,top:(y+8)/6.2};
   }
-  function draw(ctx,world,selection,displayWidth,pins,choosingPlace,interiors){
+  function atmosphere(ctx,world,time,night){
+    for(let i=0;i<17;i++){
+      const [ax,ay]=river[i%8],[bx,by]=river[i%8+1];
+      const f=(i*.381+time*.000046)%1;
+      const x=ax+(bx-ax)*f,y=ay+(by-ay)*f+((i*13)%22)-11;
+      if(x>675&&x<752)continue;
+      const fade=Math.min(1,f*8,(1-f)*8);
+      line(ctx,[[x,y],[x+8+i%4,y]],`rgba(230,252,227,${fade*(night?.27:.49)})`,1.2);
+    }
+    if(night&&!world.power){
+      for(const [x,y] of [[475,302],[618,303],[594,365],[494,367],[365,247],[682,255],[809,450]]){
+        const glow=ctx.createRadialGradient(x,y,1,x,y,18);
+        glow.addColorStop(0,'#ffe2a87b');glow.addColorStop(1,'#ffe2a800');
+        ellipse(ctx,x,y,18,18,glow);
+      }
+    }
+    if(night&&world.weather==='晴朗'){
+      for(let i=0;i<12;i++){
+        const x=55+(i*47)%250+Math.sin(time/1100+i)*7;
+        const y=359+(i*31)%113+Math.cos(time/770+i*3)*5;
+        const alpha=.25+.22*Math.sin(time/380+i*4);
+        ellipse(ctx,x,y,2.2,2.2,`rgba(247,234,131,${alpha})`);
+      }
+    }
+  }
+  function draw(ctx,world,selection,displayWidth,pins,choosingPlace,interiors,time=0){
     const labelScale=Math.min(1.8,Math.max(1,640/displayWidth));
     const hour=world.tick%48/2;
     const night=hour<6||hour>=20;
     ctx.drawImage(background(night,night&&!world.power,hour>=18,interiors),0,0);
     TownArt.keepsakes(ctx,world.keepsakes??[],night,{polygon,ellipse,line});
+    atmosphere(ctx,world,time,night);
+    const moment=TownMoments.active(world);
     for(const {resident,x,y,step,indoors,activity} of pins){
       if(indoors&&!interiors)continue;
+      if(moment&&(resident.id===moment.a||resident.id===moment.b)){
+        ctx.beginPath();ctx.ellipse(x,y+3,10+Math.sin(time/250)*1.5,5,0,0,Math.PI*2);
+        ctx.strokeStyle='#fff2ad';ctx.lineWidth=1.4;ctx.stroke();
+      }
       if(resident.id===selection)ellipse(ctx,x,y+3,indoors?7:10,indoors?4:6,'#f9d17a');
       if(indoors&&activity==='sleep'&&!step){
         ellipse(ctx,x+2,y+1,5,3,color(resident.id));ellipse(ctx,x-3,y,2.6,2.6,'#f4c695');
@@ -203,9 +234,11 @@ const TownMap = (() => {
       ctx.fillStyle='#4d5340';ctx.fillText(text,x,labelY);
     }
     if(world.weather!=='晴朗')for(let i=0;i<60;i++){
-      const x=(i*137+world.tick*13)%960,y=(i*97+world.tick*19)%620;
-      if(world.weather==='小雪')ellipse(ctx,x,y,2,2,'#fffdf1bb');
-      else line(ctx,[[x,y],[x-3,y+8]],'#e8f1fa99',1.5);
+      const snow=world.weather==='小雪';
+      const x=(i*137+(snow?Math.sin(time/880+i)*13+16:time*.071))%960;
+      const y=(i*97+time*(snow?.025:.31))%620;
+      if(snow)ellipse(ctx,x,y,1.3+i%3*.37,1.5,'#fffdf1bb');
+      else line(ctx,[[x,y],[x+4,y+9]],'#e8f1fa86',1.35);
     }
     const active=pins.find(pin=>pin.resident.id===selection&&(!pin.indoors||interiors));
     if(active){

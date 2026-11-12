@@ -2,8 +2,8 @@ const assert = require('node:assert/strict');
 const {test} = require('node:test');
 const {readFileSync} = require('node:fs');
 const vm = require('node:vm');
-const source=['npc-memory.js','save-manager.js','town-school.js','town-stories.js','town-routines.js','world.js','town-homes.js','town-map.js','town-movement.js'].map(name=>readFileSync(require('node:path').join(__dirname,'..',name),'utf8')).join('\n');
-const {Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool}=vm.runInNewContext(source+'\n({Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool})');
+const source=['npc-memory.js','save-manager.js','town-school.js','town-stories.js','town-routines.js','town-moments.js','world.js','town-homes.js','town-map.js','town-movement.js'].map(name=>readFileSync(require('node:path').join(__dirname,'..',name),'utf8')).join('\n');
+const {Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments}=vm.runInNewContext(source+'\n({Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments})');
 function to(w,t){while(w.tick<t)Town.step(w);}
 function visualRandom(seed){
   return ()=>{
@@ -232,4 +232,41 @@ test('each town and school plan can unlock its own collectible',()=>{
       assert.equal(w.keepsakes.join(','),String(day*2+plan));
     }
   }
+});
+test('an immediate nudge spends one die, creates two memories and produces at most one later favor',()=>{
+  const w=Town.create(8);to(w,17);
+  const {root,a,b}=w.moment;
+  assert.ok(Town.chooseMoment(w,root,'hint'));
+  assert.equal(w.tokens,2);
+  assert.equal(Town.chooseMoment(w,root,'hint'),false);
+  for(const id of [a,b])assert.ok(NPCMemory.recall(w,id).some(memory=>memory.type==='town-moment'));
+  const restored=JSON.parse(JSON.stringify(w));
+  assert.ok(Town.valid(restored));
+  to(w,175);to(restored,175);
+  assert.equal(JSON.stringify(w),JSON.stringify(restored));
+  const outcome=w.events.find(e=>e.parent===root&&e.type==='moment-result');
+  assert.equal(w.events.filter(e=>e.parent===outcome.id&&e.type==='moment-favor').length,1);
+});
+test('the same encounter ends differently when a hesitant neighbor is left alone or trusts the other resident',()=>{
+  const w=Town.create(8);to(w,17);
+  const copy=JSON.parse(JSON.stringify(w));
+  assert.ok(Town.chooseMoment(w,w.moment.root,'leave'));
+  assert.equal(w.tokens,3);
+  assert.equal(w.moment.success,false);
+  copy.people.find(p=>p.id===copy.moment.b).trust[copy.moment.a]=10;
+  assert.ok(Town.chooseMoment(copy,copy.moment.root,'leave'));
+  assert.equal(copy.tokens,3);
+  assert.equal(copy.moment.success,true);
+});
+test('a booked reunion can be missed or rescued by an actual same-place arrival',()=>{
+  const w=Town.create(8);to(w,17);
+  assert.ok(Town.chooseMoment(w,w.moment.root,'reunion'));
+  const alternate=JSON.parse(JSON.stringify(w));
+  const {until,b}=w.moment,place=TownMoments.sceneFor(w.moment).place;
+  to(w,until);
+  assert.equal(w.moment.success,false);
+  to(alternate,until-1);
+  assert.ok(Town.influence(alternate,b,'visit',place));
+  Town.step(alternate);
+  assert.equal(alternate.moment.success,true);
 });

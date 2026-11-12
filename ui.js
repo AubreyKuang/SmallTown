@@ -13,6 +13,7 @@ Town.upgrade(world);
 let timer=null,audio=null,running=false,fast=false,choosingPlace=false,frame=null;
 let lastFrame=null,manualUntil=0;
 let draftPlan=0,draftHelper=null,shownOffer=-1;
+let animationTime=0;
 let schoolBoard=false;
 let interiors=localStorage.getItem(KEY+':interiors')!=='off';
 let crowd=TownMovement.create(world),mapPins=crowd.pins();
@@ -61,7 +62,7 @@ function paint(){
   const activity=pin?.place!==p.place?`去${place}的路上`:p.place==='homes'&&label.startsWith('在家')?label:`${place} · ${label}`;
   const bio=`${activity} · 心情 ${p.mood} · ${p.money} 元${p.questioned?' · 察觉异常':''}`;
   if($('bio').textContent!==bio)$('bio').textContent=bio;
-  TownMap.draw(ctx,world,p.id,canvas.clientWidth,mapPins,choosingPlace,interiors);
+  TownMap.draw(ctx,world,p.id,canvas.clientWidth,mapPins,choosingPlace,interiors,animationTime);
 }
 function resetCrowd(){
   crowd=TownMovement.create(world);
@@ -76,6 +77,7 @@ function animate(now){
   frame=null;
   if(lastFrame!==null){
     crowd.advance(Math.min(.05,(now-lastFrame)/1000)*(fast?3:1),running);
+    animationTime+=Math.min(50,now-lastFrame);
     mapPins=crowd.pins();
     paint();
   }
@@ -100,7 +102,7 @@ canvas.addEventListener('click',event=>{
   if(closest.pin){$('person').value=closest.pin.resident.id;render();}
 });
 function when(tick){return `第 ${Math.floor(tick/48)+1} 天 ${String(Math.floor(tick%48/2)).padStart(2,'0')}:${tick%2?'30':'00'}`;}
-const modalOpen=()=>$('journal').open||$('stories').open;
+const modalOpen=()=>$('journal').open||$('stories').open||$('moment').open;
 function storyNode(tag,value,css){
   const node=document.createElement(tag);
   node.textContent=value;
@@ -111,6 +113,56 @@ function storyButton(label,action,css){
   const button=storyNode('button',label,css);
   button.onclick=action;
   return button;
+}
+function renderMomentPin(){
+  const active=TownMoments.active(world),pin=$('momentPin');
+  pin.hidden=!active||choosingPlace;
+  if(active){
+    const scene=TownMoments.sceneFor(active);
+    const {left,top}=TownMap.marker(scene.place);
+    pin.style.left=`${left}%`;pin.style.top=`${top+5}%`;
+    pin.title=scene.title;pin.textContent=active.state==='open'?'✦':'◷';
+  }
+}
+function renderMoment(){
+  const m=world.moment,panel=$('momentPanel');
+  panel.replaceChildren();
+  if(!m)return;
+  const scene=TownMoments.sceneFor(m),[a,b]=[m.a,m.b].map(id=>world.people.find(p=>p.id===id));
+  const faces=storyNode('div','','moment-portraits');
+  for(const p of [a,b]){
+    const image=document.createElement('canvas');image.width=image.height=64;image.setAttribute('aria-hidden','true');
+    TownMap.portrait(image,p);
+    faces.append(image,storyNode('span',p.name));
+  }
+  panel.append(storyNode('h3',scene.title),faces);
+  if(m.state==='done'){
+    panel.append(storyNode('p',m.result,'story-result'));
+    if(m.success)panel.append(storyNode('p','两个人都记住了这件事。接下来几天，如果他们再次在外相遇，可能会有后续。','story-meta'));
+    return;
+  }
+  panel.append(storyNode('p',scene.prompt(a.name,b.name)),storyNode('p',`${Town.places[scene.place].name} · ${when(m.until)}`,'story-meta'));
+  if(m.state==='waiting'){
+    const destination=Town.places[Town.forecast(world,b,m.until)].name;
+    panel.append(storyNode('p',`${a.name} 会在原处等。${b.name} 按目前的日程会去${destination}，可以临近赴约时让对方改道。`));
+    panel.append(storyButton(`观察 ${b.name}`,()=>{$('person').value=b.id;$('moment').close();render();}));
+    if(world.tick<m.until-2)panel.append(storyButton('前进到赴约前 1 小时',()=>{
+      while(world.tick<m.until-2)Town.step(world);
+      resetCrowd();save();render();
+    }));
+    return;
+  }
+  const options=storyNode('div','','moment-actions');
+  const choose=(mode,title,detail,disabled=false)=>{
+    const button=storyButton(title,()=>{
+      if(Town.chooseMoment(world,m.root,mode)){watched=m.root;beep();save();render();}
+    });
+    button.append(storyNode('small',detail));button.disabled=disabled;options.append(button);
+  };
+  choose('hint',scene.hint,'用一次干预，趁两人还在场给一个小提示。',world.tokens<1||a.place!==scene.place||b.place!==scene.place);
+  choose('reunion','让其中一人明天再来','用一次干预，留一个再见的机会。两人赴约会留下更深的记忆。',world.tokens<1);
+  choose('leave','让他们自己决定','不花干预。对方的性格和信任会影响是否开口。');
+  panel.append(options);
 }
 function renderBoard(){
   const active=TownStories.active(world),offer=TownStories.offer(world);
@@ -230,6 +282,11 @@ function renderJournal(){
     const row=document.createElement('li');row.textContent='小镇还没有留下记录。';list.append(row);
   }
   $('memoryTitle').textContent=p.name+' 的记忆';
+  const connections=world.people.map(other=>({other,score:p.trust[other.id]||0}))
+    .filter(({score})=>score!==0).sort((a,b)=>Math.abs(b.score)-Math.abs(a.score)).slice(0,5);
+  $('connections').replaceChildren(...connections.map(({other,score})=>
+    storyNode('span',`${other.name} · ${score>0?'+':''}${score}`)));
+  $('connections').hidden=!connections.length;
   $('memories').replaceChildren();
   const memories=NPCMemory.recall(world,p.id).slice(0,8);
   for(const memory of memories){
@@ -247,8 +304,9 @@ function renderFollow(){
     text.textContent='选一位居民，拨动一次命运，再看看事情会怎么发展。';
     return;
   }
-  const result=world.events.findLast(e=>e.parent===root.id&&e.type!=='suspicion');
-  const pending=world.pending.some(e=>e.parent===root.id);
+  const outcome=world.events.findLast(e=>e.parent===root.id&&e.type!=='suspicion');
+  const result=world.events.findLast(e=>e.type==='moment-favor'&&e.parent===outcome?.id)??outcome;
+  const pending=world.pending.some(e=>e.parent===root.id)||TownMoments.active(world)?.root===root.id;
   const badge=document.createElement('strong');
   badge.textContent=pending?'追踪中':result?'后续':'已发生';
   text.append(badge,document.createTextNode(result?.text??root.text));
@@ -266,7 +324,9 @@ function render(){
   $('redirect').setAttribute('aria-expanded',String(choosingPlace));
   $('destinations').hidden=!choosingPlace;
   $('openSchool').hidden=choosingPlace;
-  $('mapHint').textContent=choosingPlace?`给 ${p.name} 点一个目的地`:'点击地图上的居民';
+  renderMomentPin();
+  if($('moment').open)renderMoment();
+  $('mapHint').textContent=choosingPlace?`给 ${p.name} 点一个目的地`:TownMoments.active(world)?'点金色标记查看偶遇':'点击地图上的居民';
   const latest=world.events.findLast(e=>e.type!=='town');
   $('mapStory').hidden=!latest;
   $('mapStoryText').textContent=latest?.text||'';
@@ -327,7 +387,12 @@ $('homeView').onclick=()=>{
 showHomeMode();
 $('person').onchange=render;
 $('redirect').onclick=()=>{choosingPlace=!choosingPlace;render();};
-$('openJournal').onclick=$('mapStory').onclick=openJournal;
+$('openJournal').onclick=openJournal;
+$('mapStory').onclick=()=>{
+  const latest=world.events.findLast(e=>e.type!=='town');
+  if(latest?.id===TownMoments.active(world)?.root&&latest)openMoment();
+  else openJournal();
+};
 $('closeJournal').onclick=()=>$('journal').close();
 function openStories(school=false){
   schoolBoard=school;
@@ -337,7 +402,10 @@ function openStories(school=false){
 $('openStories').onclick=$('storyMarker').onclick=()=>openStories();
 $('openSchool').onclick=()=>openStories(true);
 $('closeStories').onclick=()=>$('stories').close();
-for(const id of ['journal','stories'])$(id).addEventListener('close',()=>{scheduleNext();refreshMotion();});
+function openMoment(){renderMoment();$('moment').showModal();scheduleNext();refreshMotion();}
+$('momentPin').onclick=openMoment;
+$('closeMoment').onclick=()=>$('moment').close();
+for(const id of ['journal','stories','moment'])$(id).addEventListener('close',()=>{scheduleNext();refreshMotion();});
 $('sound').onclick=async()=>{
   if(audio){await audio.close();audio=null;}else{audio=new AudioContext();await audio.resume();beep();}
   const label=audio?'关闭音效':'开启音效';
