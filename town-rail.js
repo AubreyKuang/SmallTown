@@ -29,6 +29,12 @@ const TownRail=(()=>{
   }
 
   const paths=new Map();
+  const waitingSeats=[[786,439],[804,435],[834,438],[851,434]];
+  const phaseLabels={alight:'正在下车',walk:'在镇上步行',visit:'在镇上停留',wait:'在候车室等车',queue:'正从候车室去站台',board:'正在上车'};
+  function platformWay(x,y){
+    const [outside,door]=TownInteriors.entry('station');
+    return [door,outside,[867,outside[1]],[879,y],[x,y]];
+  }
   function route(destination,offset){
     const key=`${destination}:${offset}`;
     if(!paths.has(key)){
@@ -37,8 +43,11 @@ const TownRail=(()=>{
       const target=[x+offset*4,y+offset*5];
       const street=TownMap.plan(TownMap.route({place:'station',x:station[0],y:station[1],resident:{id:offset+1}},
         {place:destination,x:target[0],y:target[1]}));
-      paths.set(key,{door,platform,station,target,street,platformPath:TownMap.plan([door,platform,[879,station[1]],station]),
-        queue:TownMap.plan([station,[879,station[1]],platform]),board:TownMap.plan([platform,door])});
+      const seat=waitingSeats[offset];
+      const [outside,entrance]=TownInteriors.entry('station');
+      paths.set(key,{seat,target,street,platformPath:TownMap.plan([door,platform,[879,station[1]],station]),
+        toRoom:TownMap.plan([station,outside,entrance,seat]),
+        queue:TownMap.plan([seat,...platformWay(...platform)]),board:TownMap.plan([platform,door])});
     }
     return paths.get(key);
   }
@@ -54,25 +63,33 @@ const TownRail=(()=>{
         const p=route(visit?.profile.place??destinations[(origin.index+i)%3],i);
         let position,phase;
         const explore=visit?.profile.place==='square'?origin.start+2.7:origin.start+2.2+i*.12,reach=visit?.reach??origin.start+5.6+i*.12;
-        const returnAt=visit?.leave??Math.max(reach,next.start-3.2-i*.08),queueAt=next.start+.36+i*.11;
+        const returnAt=visit?.leave??Math.max(reach,next.start-3.2-i*.08);
+        const queueAt=next.start+1.01+i*.045;
+        const roomAt=Math.max(returnAt,queueAt-(visit?.profile.id==='luye'?.4:1.45));
+        const stationAt=returnAt+(roomAt-returnAt)*.79;
         if(time<explore){
           position=TownMap.position(p.platformPath,fraction(time,alight,explore));phase='alight';
         }else if(time<reach){
           position=TownMap.position(p.street,fraction(time,explore,reach));phase='walk';
         }else if(time<returnAt){
           position=p.target;phase='visit';
+        }else if(time<stationAt){
+          position=TownMap.position(p.street,1-fraction(time,returnAt,stationAt));phase='walk';
+        }else if(time<roomAt){
+          position=TownMap.position(p.toRoom,fraction(time,stationAt,roomAt));phase='walk';
         }else if(time<queueAt){
-          position=TownMap.position(p.street,1-fraction(time,returnAt,queueAt));phase='walk';
+          position=p.seat;phase='wait';
         }else if(time<board){
-          position=TownMap.position(p.queue,fraction(time,queueAt,queueAt+.8));phase='wait';
+          position=TownMap.position(p.queue,fraction(time,queueAt,board));phase='queue';
         }else{
           position=TownMap.position(p.board,fraction(time,board,board+.15));phase='board';
         }
         pins.push({id:visit?.profile.sprite??100+(origin.day+1)*12+origin.index*4+i,
-          visitor:visit?.profile,x:position[0],y:position[1],phase});
+          visitor:visit?.profile,x:position[0],y:position[1],phase,
+          indoors:TownInteriors.contains('station',...position),departure:next.start+2});
       }
     }
     return pins;
   }
-  return {services,schedule,notice,trackX,train,passengers};
+  return {services,schedule,notice,trackX,train,passengers,platformWay,phaseLabels};
 })();

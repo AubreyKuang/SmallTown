@@ -768,11 +768,12 @@ test('a resident boards at the station, stays away across a reload, and returns 
   };
   while(w.tick<trip.depart-2)visualTick();
   assert.equal(p.activity,'trainWait');
-  assert.equal(pin().x,879);
+  assert.ok(pin().indoors);
+  assert.ok(TownInteriors.contains('station',pin().x,pin().y));
   const before=pin();
   Town.step(w);
   crowd.advance(.05,false);
-  assert.ok(pin().x>before.x&&pin().x-before.x<2.3);
+  assert.ok(Math.hypot(pin().x-before.x,pin().y-before.y)<2.3);
   for(let i=0;i<144;i++)crowd.advance(.05,false);
   assert.equal(pin(),undefined);
   visualTick();
@@ -1115,4 +1116,21 @@ test('unassisted stories leave traces after repair and not after the first misse
   to(w,136);
   assert.equal(TownMementos.list(w)[0].title,'摊开的手写食谱');
   assert.ok(Town.valid(w));
+});
+
+test('anonymous travelers wait indoors through the train approach and walk out after it stops',()=>{
+  const next=TownRail.services(0)[1];
+  const find=(tick,progress)=>TownRail.passengers(tick,progress).filter(p=>p.departure===next.start+2);
+  const waiting=find(next.start,.9);
+  assert.equal(waiting.length,next.departures);
+  for(const p of waiting){
+    assert.equal(p.phase,'wait');
+    assert.ok(p.indoors);
+    assert.ok(TownInteriors.contains('station',p.x,p.y));
+    const exit=find(next.start+1,.3).find(pin=>pin.id===p.id);
+    assert.equal(exit.phase,'queue');
+  }
+  const boarded=find(next.start+1,.88);
+  assert.ok(boarded.every(p=>!p.indoors&&p.phase==='board'));
+  assert.equal(find(next.start+2,0).length,0);
 });

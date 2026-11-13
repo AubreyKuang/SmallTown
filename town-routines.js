@@ -10,7 +10,7 @@ const TownRoutines=(()=>{
     learnTune:'在喷泉边学一段曲子',shareTune:'在广场哼起上次的曲子',
     party:'参加广场派对',festival:'在广场看风铃',concert:'在广场听演奏',welcomeGuest:'在车站接鹿野',
     crossroads:'为碰面留了时间',meet:'赴一个约定',meteor:'在广场看流星',experiment:'在广场守着一枚硬币',lecture:'在广场听 Newton 演讲',speech:'在广场演讲',
-    twilight:'坐在灯笺旁',trainWait:'在站台等车',trainBoard:'正在上车',trainReturn:'刚下火车',away:'这两天不在小镇',moveIn:'刚下车，准备搬进新家',breadCart:'在推车送货',breadBake:'在烤今天的面包'
+    twilight:'坐在灯笺旁',trainWait:'在候车室等车',trainBoard:'正在上车',trainReturn:'刚下火车',away:'这两天不在小镇',moveIn:'刚下车，准备搬进新家',breadCart:'在推车送货',breadBake:'在烤今天的面包'
   };
   const at=(place,activity)=>({place,activity});
   const hourTick=tick=>tick%48;

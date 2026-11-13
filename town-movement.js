@@ -12,7 +12,7 @@ const TownMovement = (() => {
 
     const platform=id=>[879,451+(id%4)*12];
     const door=id=>[891,451+(id%4)*12];
-    const publicStops=(place,activity,id)=>activity==='trainBoard'?[door(id)]:activity==='trainWait'?[platform(id)]:
+    const publicStops=(place,activity,id)=>activity==='trainBoard'?[door(id)]:
       TownFestivals.crowdStops[activity]??(TownInteriors.uses(place,activity)?TownInteriors.stops(place):TownMap.stops[place]);
     function twilightSeat(resident,place,activity){
       if(activity!=='twilight')return null;
@@ -94,7 +94,10 @@ const TownMovement = (() => {
       }else if(walker.activity==='alight'&&place==='station'){
         waypoints=[[walker.x,walker.y],platform(walker.resident.id),[879,y],[x,y]];
       }else if(activity==='trainBoard'){
-        waypoints=[...routeTo({place,x:879,y}),[x,y]];
+        const [entrance,outside,...platformPath]=TownRail.platformWay(x,y);
+        waypoints=TownInteriors.contains(place,walker.x,walker.y)?
+          [[walker.x,walker.y],entrance,outside,...platformPath]:
+          [...routeTo({place,x:outside[0],y:outside[1]}),...platformPath];
       }
       const path=TownMap.plan(waypoints);
       walker.stop=destination;
@@ -184,7 +187,9 @@ const TownMovement = (() => {
         if((activity==='trainBoard'||delivery)&&walker.group)endGroup(walker.group,false);
         walker.cooldown-=seconds;
         if(walker.group?.type==='talk')continue;
-        if(['trainWait','trainBoard'].includes(activity)&&walker.journey?.activity!==activity&&walker.activity!==activity)start(walker,'station',activity);
+        const destination=walker.journey?.path.points.at(-1)??[walker.x,walker.y];
+        const waitOutside=activity==='trainWait'&&!TownInteriors.contains('station',...destination);
+        if(waitOutside||['trainWait','trainBoard'].includes(activity)&&walker.journey?.activity!==activity&&walker.activity!==activity)start(walker,'station',activity);
         else if(delivery&&walker.journey?.activity!=='breadCart'&&walker.activity!=='breadCart')start(walker,place,activity,delivery);
         else if(walker.journey&&(walker.journey.place!==place||walker.journey.cartStart!=null&&!delivery)){
           if(walker.journey.transit)start(walker,place,activity,delivery);

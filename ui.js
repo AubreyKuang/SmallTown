@@ -208,14 +208,20 @@ canvas.addEventListener('click',event=>{
     const distance=Math.hypot(x-pin.x,y-pin.y+7);
     return distance<best.distance?{pin,distance}:best;
   },{pin:null,distance:Math.max(30,TownCamera.width/bounds.width*19)/camera.scale});
-  const guest=TownRail.passengers(world.tick,tickProgress).find(pin=>
-    pin.visitor&&Math.min(Math.hypot(x-pin.x,y-pin.y+4),Math.hypot(x-pin.x,y-pin.y+26))<Math.min(24,closest.distance));
-  if(guest){if(guest.visitor.id==='luye')openFestival();else openRail(guest.visitor.id);return;}
+  const traveler=TownRail.passengers(world.tick,tickProgress).reduce((best,pin)=>{
+    if(pin.indoors&&!interiors)return best;
+    const distance=Math.min(Math.hypot(x-pin.x,y-pin.y+6),
+      pin.visitor?Math.hypot(x-pin.x,y-pin.y+26):Infinity);
+    return distance<best.distance?{pin,distance}:best;
+  },{pin:null,distance:Math.min(closest.distance,Math.max(14,18*TownCamera.width/bounds.width/camera.scale))}).pin;
+  if(traveler){openRail(traveler);return;}
   const item=TownMementos.list(world).find(item=>Math.hypot(x-item.x,y-item.y+5)<Math.min(13,closest.distance));
   if(item){openMementos(item.id);return;}
   if(closest.pin){
     chooseResident(closest.pin.resident.id);
     $('sideFate').closest('.controls-panel').scrollTop=0;
+  }else if(TownInteriors.contains('station',x,y)){
+    openRail();
   }else if(TownTradeArt.hit(x,y)||['bakery','market'].includes(TownMap.findPlace(x,y)))openSupply();
 });
 function when(tick){return `第 ${Math.floor(tick/48)+1} 天 ${String(Math.floor(tick%48/2)).padStart(2,'0')}:${tick%2?'30':'00'}`;}
@@ -533,7 +539,7 @@ function renderFestival(){
 function openFestival(){
   $('festival').showModal();renderFestival();$('festivalTitle').focus();scheduleNext();refreshMotion();
 }
-function renderRail(){
+function renderRail(traveler){
   const {active,next,phase}=TownRail.schedule(world.tick),button=$('openRail');
   const status={approach:'正在进站',platform:'正在上下车',departure:'正在发车'};
   button.dataset.active=String(Boolean(active));
@@ -574,6 +580,15 @@ function renderRail(){
   }
   const panel=$('railPanel');
   panel.replaceChildren(storyNode('h3',active?status[phase]:`下一班 ${when(next.start+1)}`),list);
+  if(traveler){
+    const card=storyNode('section','','resident-section');
+    const heading=storyNode('h3',traveler.visitor?.name??'过路旅客');
+    heading.id='railTraveler';heading.tabIndex=-1;
+    card.append(heading,storyNode('p',TownRail.phaseLabels[traveler.phase]+' · '+when(traveler.departure)+' 发车','story-meta'),
+      storyNode('p',traveler.visitor?.reason??'途经微光镇，搭下一班列车继续旅程。'));
+    if(traveler.visitor?.id==='luye')card.append(storyButton('查看音乐会',()=>{$('rail').close();openFestival();}));
+    panel.append(card);
+  }
   const residents=world.people.filter(p=>{
     const trip=TownTravel.tripFor(world,p);
     return trip&&!trip.returned;
@@ -1072,9 +1087,9 @@ $('openSchool').onclick=()=>openStories(true);
 $('closeStories').onclick=()=>$('stories').close();
 function openMoment(){renderMoment();$('moment').showModal();scheduleNext();refreshMotion();}
 $('closeMoment').onclick=()=>$('moment').close();
-function openRail(visitor){
-  $('rail').showModal();renderRail();scheduleNext();refreshMotion();
-  if(visitor)$(`visitor-${visitor}`)?.focus();
+function openRail(traveler){
+  $('rail').showModal();renderRail(traveler);scheduleNext();refreshMotion();
+  if(traveler)$('railTraveler')?.focus();
 }
 $('openBuild').onclick=()=>{$('build').showModal();renderBuild();scheduleNext();refreshMotion();};
 $('closeBuild').onclick=()=>$('build').close();

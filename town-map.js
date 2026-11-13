@@ -316,8 +316,9 @@ const TownMap = (() => {
     rollingStock(ctx,TownRail.train(world.tick,progress));
     TownTradeArt.trade(ctx,world,cargo,time,{polygon,ellipse,line},interiors);
     for(const traveler of TownRail.passengers(world.tick,progress)){
-      const {id,x,y,phase,visitor}=traveler;
-      const walking=['alight','walk','board'].includes(phase);
+      const {id,x,y,phase,visitor,indoors}=traveler;
+      if(indoors&&!interiors)continue;
+      const walking=['alight','walk','queue','board'].includes(phase);
       TownCharacters.draw(ctx,id,x,y,{step:walking?Math.sin(time/110+id)*1.4:0,scale:1.1},characterBrushes);
       if(visitor?.id==='luye'&&phase==='visit'){
         const stretch=Math.sin(time/155)*1.5;
