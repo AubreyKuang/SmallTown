@@ -203,8 +203,9 @@ const TownRipples=(()=>{
         const peers=companions(w,a).slice(0,3);
         if(!peers.length)return false;
         const what=a.place==='cafe'?'喝咖啡':a.place==='bakery'?'吃刚出炉的面包':'吃点心';
-        const id=emit(w,log,`${a.name} 中奖后心情大好，在${placeName(a.place)}请 ${peers.map(p=>p.name).join('、')} ${what}。`,k,'treat',[a.id,...peers.map(p=>p.id)],{tone:1});
-        a.money=Math.max(0,a.money-4*peers.length);
+        const amount=Math.min(a.money,4*peers.length);
+        const id=emit(w,log,`${a.name} 中奖后心情大好，在${placeName(a.place)}请 ${peers.map(p=>p.name).join('、')} ${what}。`,k,'treat',[a.id,...peers.map(p=>p.id)],{tone:1,amount,what});
+        a.money-=amount;
         for(const p of peers){
           p.mood+=6;
           NPCMemory.record(w,{type:'treat',time:w.tick,participants:[p.id,a.id],source:id},[
@@ -243,8 +244,8 @@ const TownRipples=(()=>{
       }
       case 'repay':{
         if(!together(a,b))return false;
-        const id=emit(w,log,`${a.name} 把借的 15 元还给了 ${b.name}，还多带了一袋面包。`,k,'repay',[a.id,b.id],{tone:1});
         const amount=Math.min(15,a.money);a.money-=amount;b.money+=amount;
+        const id=emit(w,log,`${a.name} 还给了 ${b.name} ${amount} 元，还多带了一袋面包。`,k,'repay',[a.id,b.id],{tone:1,amount});
         NPCMemory.record(w,{type:'repay',time:w.tick,participants:[b.id,a.id],source:id},[
           {person:b.id,subject:a.id,emotion:.6,impact:65,interpretation:`${a.name} 守信用，借的钱按时还了。`}]);
         b.trust[a.id]=clamp((b.trust[a.id]||0)+8,-100,100);
@@ -366,11 +367,11 @@ const TownRipples=(()=>{
         if(wrong){
           const twist=pick(s,['在背后说别人的坏话','故意躲着大家','最近谁都瞧不上'],plan.parent,listener.id);
           const claim=`${b.name} ${twist}。`;
-          const id=emit(w,log,`${a.name} 跟 ${listener.name} 说起 ${b.name} 的事。${listener.name} 听岔了，以为 ${claim}`,plan.parent,'rumor',[a.id,listener.id,b.id],{tone:-1,hops:plan.hops+1});
+          const id=emit(w,log,`${a.name} 跟 ${listener.name} 说起 ${b.name} 的事。${listener.name} 听岔了，以为 ${claim}`,plan.parent,'rumor',[a.id,listener.id,b.id],{tone:-1,hops:plan.hops+1,claim:plan.claim,misheard:claim});
           hearsay(w,listener,b,-.6,`听说 ${claim}`,id);
           if(plan.hops<3&&roll(s,id,5)<.6)addPlan(s,{kind:'gossip',ids:[listener.id,b.id],parent:id,at:w.tick+2,until:w.tick+36,tone:-1,claim,hops:plan.hops+1,told:[a.id]});
         }else{
-          const id=emit(w,log,`${a.name} 跟 ${listener.name} 说：“${plan.claim}”`,plan.parent,'gossip',[a.id,listener.id,b.id],{tone:plan.tone,hops:plan.hops});
+          const id=emit(w,log,`${a.name} 跟 ${listener.name} 说：“${plan.claim}”`,plan.parent,'gossip',[a.id,listener.id,b.id],{tone:plan.tone,hops:plan.hops,claim:plan.claim});
           hearsay(w,listener,b,plan.tone*.4,`听 ${a.name} 说，${plan.claim}`,id);
         }
         return plan.told.length>=2;
@@ -395,7 +396,7 @@ const TownRipples=(()=>{
       if(a.place==='square')emit(w,log,`${a.name} 在广场等了一会儿，最终没把话说出口。`,plan.parent,'quiet',[a.id,b.id],{tone:0});
     }else if(plan.kind==='repay'&&a&&b){
       const amount=Math.min(15,a.money);a.money-=amount;b.money+=amount;
-      emit(w,log,`${a.name} 把借的钱装进信封，塞进了 ${b.name} 家的信箱。`,plan.parent,'repay',[a.id,b.id],{tone:1});
+      emit(w,log,`${a.name} 把借的钱装进信封，塞进了 ${b.name} 家的信箱。`,plan.parent,'repay',[a.id,b.id],{tone:1,amount});
       b.trust[a.id]=clamp((b.trust[a.id]||0)+4,-100,100);
     }else if(plan.kind==='unpaid'&&a&&b){
       const id=emit(w,log,`${b.name} 等了好几天，${a.name} 还是没提还钱的事。`,plan.parent,'conflict',[b.id,a.id],{tone:-1});

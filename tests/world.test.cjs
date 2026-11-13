@@ -885,3 +885,57 @@ test('a returning traveler shares their own memory when talking with a neighbor'
   assert.equal(chat.lines[1].speaker,a.id);
   assert.equal(chat.lines[1].text,memory.interpretation);
 });
+
+test('new arrivals introduce themselves and other residents hear who moved where',()=>{
+  const w=Town.create(8),[a,b]=w.people;
+  to(w,17);
+  assert.ok(Town.placeBuilding(w,4,'cottage'));
+  to(w,66);
+  const event=w.events.find(e=>e.type==='build-move-in');
+  const newcomer=w.people.find(p=>p.id===event.ids[0]);
+  const chat=TownConversations.create(w,a,b);
+  assert.equal(chat.source,event.id);
+  assert.match(chat.lines[0].text,/Ina.*东街口/);
+  const introduction=TownConversations.create(w,newcomer,a);
+  assert.equal(introduction.source,event.id);
+  assert.equal(introduction.lines[1].speaker,newcomer.id);
+  assert.match(introduction.lines[1].text,/新家的钥匙/);
+  assert.ok(Town.roadTalk(w,a.id,b.id,chat));
+  assert.notEqual(TownConversations.create(w,a,w.people[2]).source,event.id);
+});
+
+test('actual spending enters the conversation and only participants can discuss a loan amount',()=>{
+  const w=Town.create(8);
+  to(w,20);
+  const [payer,guest,neighbor,stranger]=w.people;
+  for(const p of w.people){p.place='homes';p.activity='rest';}
+  payer.place=guest.place='cafe';payer.activity=guest.activity='coffee';
+  TownRipples.step(w,manualLog(w));
+  w.ripples.plans.push({kind:'treat',ids:[payer.id],parent:null,at:w.tick,until:w.tick+5});
+  const before=payer.money;
+  TownRipples.step(w,manualLog(w));
+  const treat=w.events.find(e=>e.type==='treat');
+  assert.equal(treat.amount,before-payer.money);
+  const shared=TownConversations.create(w,guest,payer);
+  assert.equal(shared.source,treat.id);
+  assert.equal(shared.lines[1].speaker,payer.id);
+  assert.match(shared.lines[1].text,new RegExp(`${treat.amount} 元`));
+  const loan={id:++w.sequence,tick:w.tick,type:'loan',ids:[payer.id,neighbor.id],amount:15};
+  w.events.push(loan);
+  assert.equal(TownConversations.create(w,payer,neighbor).source,loan.id);
+  assert.notEqual(TownConversations.create(w,neighbor,stranger).source,loan.id);
+  loan.amount=0;
+  assert.notEqual(TownConversations.create(w,payer,neighbor).source,loan.id);
+});
+
+test('a misheard story stays attributed to the two residents who discussed it',()=>{
+  const w=Town.create(8),[teller,listener,subject,stranger]=w.people;
+  const rumor={id:++w.sequence,tick:w.tick,type:'rumor',ids:[teller.id,listener.id,subject.id],
+    claim:'Bob 最近手头紧。',misheard:'Bob 故意躲着大家。'};
+  w.events.push(rumor);
+  const chat=TownConversations.create(w,teller,listener);
+  assert.equal(chat.source,rumor.id);
+  assert.equal(chat.lines[0].speaker,listener.id);
+  assert.match(chat.lines[1].text,/我也是听来的/);
+  assert.notEqual(TownConversations.create(w,listener,stranger).source,rumor.id);
+});

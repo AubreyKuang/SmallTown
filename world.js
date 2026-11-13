@@ -26,8 +26,8 @@ const Town = (() => {
     w.seed=(Math.imul(w.seed,1664525)+1013904223)>>>0;
     return w.seed/4294967296;
   }
-  function log(w,text,parent=null,type='town',ids=[]) {
-    const event={id:++w.sequence,tick:w.tick,text,parent,type,ids};
+  function log(w,text,parent=null,type='town',ids=[],details) {
+    const event={id:++w.sequence,tick:w.tick,text,parent,type,ids,...details};
     w.events.push(event);
     if(w.events.length>300){
       const required=new Set(w.pending.map(p=>p.parent));
@@ -64,8 +64,8 @@ const Town = (() => {
     if(recent.some(e=>e.ids.includes(first)&&e.ids.includes(second))||recent.filter(e=>e.tick===w.tick).length>=2)return false;
     const chat=conversation??TownConversations.create(w,a,b);
     const parent=w.events.some(event=>event.id===chat.source)?chat.source:null;
-    const source=log(w,`${a.name} 和 ${b.name} 路上停了一会儿，聊起了${chat.topic}。`,parent,'road-talk',[first,second]);
-    w.events.at(-1).dialogue=chat.lines;
+    const source=log(w,`${a.name} 和 ${b.name} 路上停了一会儿，聊起了${chat.topic}。`,parent,'road-talk',[first,second],
+      {dialogue:chat.lines,conversationTopic:chat.topic});
     memory(w,a,b,'road-talk',.24,`路上碰见 ${b.name}，我们聊起了${chat.topic}。`,source,45);
     memory(w,b,a,'road-talk',.24,`路上碰见 ${a.name}，我们聊起了${chat.topic}。`,source,45);
     return true;
@@ -172,7 +172,7 @@ const Town = (() => {
       const support=(p.trust[candidate.id]||0)+NPCMemory.influence(w,p.id,candidate.id)*12;
       const accepts=p.money>=35&&(p.temperament==='generous'||support>8);
       const text=`${candidate.name} 听说中奖后向 ${p.name} 借钱，${accepts?'得到了帮助':'碰了壁，两人有点尴尬'}。`;
-      const id=log(w,text,entry.parent,'loan',[p.id,candidate.id]);
+      const id=log(w,text,entry.parent,'loan',[p.id,candidate.id],{amount:accepts?15:0});
       if(accepts){p.money-=15;candidate.money+=15;}
       memory(w,candidate,p,'loan',accepts?.8:-.65,text,id);
       memory(w,p,candidate,'loan',accepts?.4:-.25,text,id);

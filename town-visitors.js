@@ -41,7 +41,7 @@ const TownVisitors=(()=>{
     if(history.lastDay!==day){
       history.lastDay=day;
       history.visits++;
-      log(`${profile.name} 搭早班车来到微光镇。`,null,'visitor-arrival',[]);
+      log(`${profile.name} 搭早班车来到微光镇。`,null,'visitor-arrival',[],{visitorName:profile.name});
     }
     if(w.tick<reach||w.tick>=leave||history.lastMeeting?.day===day)return;
     const present=w.people.filter(p=>p.place===profile.place&&!TownSchool.student(p)&&

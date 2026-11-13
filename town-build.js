@@ -47,7 +47,7 @@ const TownBuild=(()=>{
     for(const b of buildings(w)){
       if(!b.finished&&w.tick>=b.ready){
         b.finished=true;
-        log(`${plots[b.plot].name}的${types[b.type].name}竣工了。`,null,'build-ready',[]);
+        log(`${plots[b.plot].name}的${types[b.type].name}竣工了。`,null,'build-ready',[],{plot:b.plot});
       }
       if(b.movedIn||w.tick<b.moveIn)continue;
       b.movedIn=true;
