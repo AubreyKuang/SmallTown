@@ -7,6 +7,7 @@ const TownRoutines=(()=>{
     teach:'正在上课',class:'听课',prepare:'准备上课',recess:'在操场玩',indoorRecess:'室内课间',homework:'在家写作业',play:'放学后玩耍',
     stars:'在广场看星星',project:'准备镇务',visit:'临时改道',wish:'为自己的事留了时间',
     date:'赴约',dateOvertime:'还在收摊，惦记着约会',dateRepair:'和恋人见面，把话说清楚',
+    learnTune:'在喷泉边学一段曲子',shareTune:'在广场哼起上次的曲子',
     party:'参加广场派对',festival:'在广场看风铃',concert:'在广场听演奏',welcomeGuest:'在车站接鹿野',
     crossroads:'为碰面留了时间',meet:'赴一个约定',meteor:'在广场看流星',experiment:'在广场守着一枚硬币',lecture:'在广场听 Newton 演讲',speech:'在广场演讲',
     twilight:'坐在灯笺旁',trainWait:'在站台等车',trainBoard:'正在上车',trainReturn:'刚下火车',away:'这两天不在小镇',moveIn:'刚下车，准备搬进新家',breadCart:'在推车送货',breadBake:'在烤今天的面包'

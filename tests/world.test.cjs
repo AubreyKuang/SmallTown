@@ -1061,3 +1061,31 @@ test('the headliner disembarks before going to the stage, with residents at both
   assert.ok(held.ids.some(id=>greeting.ids.includes(id)));
   assert.equal(loaded.events.filter(e=>e.type==='festival-arrival').length,1);
 });
+
+test('Pip learns from a real concert attendee and shares the tune on a later visit after reload',()=>{
+  const w=Town.create(8),first=TownFestivals.plan(4);
+  to(w,first.at+1);
+  const held=w.events.find(e=>e.festivalName===first.name);
+  assert.equal(w.festivalTune.phase,'waiting');
+  assert.ok(held.ids.includes(w.festivalTune.guide));
+  assert.ok(!held.ids.includes(28));
+  const resumed=JSON.parse(JSON.stringify(w));
+  assert.ok(Town.valid(resumed));
+  to(resumed,5*48+37);
+  assert.equal(resumed.festivalTune.phase,'heard');
+  const pip=resumed.people.find(p=>p.id===28);
+  const guide=resumed.people.find(p=>p.id===resumed.festivalTune.guide);
+  assert.equal(pip.place,'square');
+  assert.equal(guide.place,'square');
+  assert.match(TownConversations.create(resumed,pip,guide).topic,/曲子/);
+  assert.ok(NPCMemory.recall(resumed,28).some(m=>m.type==='festival-tune'));
+  const next=TownFestivals.plan(11);
+  to(resumed,next.at);
+  assert.equal(resumed.festivalTune.phase,'done');
+  assert.ok(NPCMemory.recall(resumed,28).some(m=>m.type==='festival-reprise'));
+  assert.ok(Town.valid(resumed));
+  to(resumed,12*48);
+  assert.ok(resumed.papers.at(-1).sections.some(s=>s.text.includes('把这一句拉进了原来的旋律')));
+  to(resumed,19*48);
+  assert.equal(resumed.events.filter(e=>e.type==='festival-reprise').length,1);
+});

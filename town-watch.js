@@ -2,7 +2,7 @@
 
 const TownWatch=(()=>{
   const limit=2;
-  const followups=new Set(['crossroads-result','neighborhood','date-result','wish-result','moment-result','moment-favor','story-done','story-missed',
+  const followups=new Set(['crossroads-result','neighborhood','festival-tune','festival-reprise','date-result','wish-result','moment-result','moment-favor','story-done','story-missed',
     'reunion','couple','confess-no','bond','conflict','thanks','visitor-meeting','visitor-reunion','twilight-meet','supply-help','travel-depart','travel-return']);
   const ids=w=>w.followedResidents??[];
   function toggle(w,id){

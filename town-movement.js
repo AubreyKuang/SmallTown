@@ -133,11 +133,12 @@ const TownMovement = (() => {
           const dist=distance(a.x,a.y,[b.x,b.y]);
           if(dist<8||dist>32)continue;
           if(inside(a)!==inside(b)||inside(a)&&a.place!==b.place)continue;
-          if(TownSchool.student(a.resident)!==TownSchool.student(b.resident)&&
+          const learningTogether=a.activity==='learnTune'&&b.activity==='learnTune';
+          if(!learningTogether&&TownSchool.student(a.resident)!==TownSchool.student(b.resident)&&
             TownSchool.household(a.resident.id)!==TownSchool.household(b.resident.id))continue;
           const sameWay=alignment(a,b)>.85;
           const familiar=(a.resident.trust[b.resident.id]||0)+(b.resident.trust[a.resident.id]||0)>0;
-          const canChat=dist<=23&&(!sameWay||familiar)&&random()<(familiar?.75:.46);
+          const canChat=learningTogether||dist<=23&&(!sameWay||familiar)&&random()<(familiar?.75:.46);
           if(!sameWay&&!canChat)continue;
           const group={a,b,type:canChat?'talk':'walk',remaining:canChat?4.8+random()*1.6:3+random()*2};
           if(canChat)group.conversation=TownConversations.create(world,a.resident,b.resident);

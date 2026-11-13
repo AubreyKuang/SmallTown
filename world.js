@@ -87,7 +87,7 @@ const Town = (() => {
     const meetup=TownMoments.destination(w,p);
     if(meetup)return {place:meetup,activity:'visit'};
     const school=TownSchool.routine(w,p);
-    if(school)return TownWishes.destination(w,p,school);
+    if(school)return TownFestivals.followup(w,p,TownWishes.destination(w,p,school));
     if(w.power&&(p.id%5===0||p.id%7===0)&&h>=19+(p.id%3)*.5&&h<21+(p.id%2)*.5)return {place:'square',activity:'stars'};
     const routine=TownSkeptic.destination(w,p,TownRipples.destination(w,p,TownRelations.destination(w,p,TownWishes.destination(w,p,TownRoutines.daily(w,p)))));
     const everyday=TownTwilight.destination(w,p,TownCrossroads.neighborhood(w,p,routine));
@@ -256,7 +256,7 @@ const Town = (() => {
     &&w.people.every(p=>p.job!=='away'&&p.habit!=='away'&&Object.hasOwn(places,p.job)&&Object.hasOwn(places,p.habit)&&p.trust&&typeof p.trust==='object')
     &&Array.isArray(w.pending)&&w.pending.every(p=>['late','help','meeting','loan'].includes(p.kind)&&w.people.some(person=>person.id===p.person))
     &&Number.isInteger(w.sequence)&&Number.isInteger(w.tokens)&&w.tokens>=0&&w.tokens<=5&&TownStories.valid(w)&&TownMoments.valid(w)&&TownWishes.valid(w)&&TownRelations.valid(w)
-    &&TownRipples.valid(w)&&TownSkeptic.valid(w)&&TownGoals.valid(w)&&TownPaper.valid(w)&&TownWatch.valid(w)&&TownVisitors.valid(w)&&TownTwilight.valid(w)&&TownSupply.valid(w)&&TownTravel.valid(w)&&TownCrossroads.valid(w);
+    &&TownRipples.valid(w)&&TownSkeptic.valid(w)&&TownGoals.valid(w)&&TownPaper.valid(w)&&TownWatch.valid(w)&&TownVisitors.valid(w)&&TownTwilight.valid(w)&&TownSupply.valid(w)&&TownTravel.valid(w)&&TownCrossroads.valid(w)&&TownFestivals.valid(w);
   // Older saves carry no ripple, skeptic, goal or paper state. Those modules start fresh from the current tick.
   function migrate(data,from){
     if(!data||typeof data!=='object')return data;

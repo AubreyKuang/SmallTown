@@ -346,6 +346,11 @@ const TownMap = (() => {
         sleeping:indoors&&activity==='sleep'&&!step,
         working:resident.job==='bakery'&&['work','breadBake'].includes(activity)
       },characterBrushes);
+      if(['learnTune','shareTune'].includes(activity)&&!step){
+        const rise=(time/220+resident.id)%6;
+        ellipse(ctx,x+9,y-14-rise,1.5,1.1,'#815775');
+        line(ctx,[[x+10,y-14-rise],[x+10,y-19-rise],[x+12,y-18-rise]],'#815775',.9);
+      }
       if(activity==='stars')ellipse(ctx,x+8,y-1,3,3,'#fff0a4');
     }
     TownAtmosphere.particles(ctx,world,time,light,{ellipse,line});
