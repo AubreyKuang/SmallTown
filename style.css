@@ -148,3 +148,5 @@ dialog{width:min(760px,calc(100% - 24px));max-height:88vh;border:1px solid var(-
 @media(max-width:530px){
   .side-tabs button,.profile-link,.side-link{min-height:42px}
 }
+
+#music[aria-pressed=true],#sound[aria-pressed=true]{border-color:#eac477;color:#ffdf96}

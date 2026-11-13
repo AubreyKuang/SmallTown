@@ -1,6 +1,7 @@
 'use strict';
 const $=id=>document.getElementById(id);
 const KEY='god-dice-v1';
+const music=TownMusic.create();
 const canvas=$('map'),ctx=canvas.getContext('2d');
 const motion=window.matchMedia('(prefers-reduced-motion: reduce)');
 let world=SaveManager.load(localStorage,KEY,Town.valid,Town.migrate);
@@ -719,6 +720,7 @@ function renderWatch(){
   panel.replaceChildren(storyNode('h2','关注的居民'),...cards);
 }
 function render(){
+  music.setTime(world.tick);
   const p=selected(),night=world.tick%48<12||world.tick%48>=40;
   $('clock').textContent=when(world.tick);
   $('skyIcon').textContent=world.power?'◐':world.weather==='小雪'?'❄':world.weather==='细雨'?'☂':night?'☾':'☀';
@@ -880,6 +882,14 @@ function openResidentProfile(){
 $('openWish').onclick=openResidentProfile;
 $('closeWish').onclick=()=>$('wish').close();
 for(const id of ['journal','stories','moment','rail','wish','paper','fate','thread','twilight','supply','build'])$(id).addEventListener('close',()=>{scheduleNext();refreshMotion();});
+$('music').onclick=async()=>{
+  const button=$('music');
+  button.disabled=true;
+  const enabled=await music.toggle();
+  button.setAttribute('aria-pressed',String(enabled));
+  button.title=enabled?'关闭背景音乐':'开启背景音乐';
+  button.disabled=false;
+};
 $('sound').onclick=async()=>{
   if(audio){await audio.close();audio=null;}else{audio=new AudioContext();await audio.resume();beep();}
   const label=audio?'关闭音效':'开启音效';
@@ -1163,7 +1173,7 @@ $('quests').onclick=()=>openFate('quests');
 $('awareness').onclick=()=>openFate('newton');
 $('closeThread').onclick=()=>$('thread').close();
 window.addEventListener('resize',paint);
-document.addEventListener('visibilitychange',()=>{scheduleNext();refreshMotion();});
+document.addEventListener('visibilitychange',()=>{music.setHidden(document.hidden);scheduleNext();refreshMotion();});
 motion.addEventListener('change',()=>{if(motion.matches){resetCrowd();paint();}refreshMotion();});
 window.addEventListener('pagehide',save);
 save();render();
