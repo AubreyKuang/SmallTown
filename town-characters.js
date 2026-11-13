@@ -48,7 +48,8 @@ const TownCharacters=(()=>{
   ];
   const visitors={
     105:['男','side','coat','plum','glasses'],
-    106:['女','bob','jacket','clay','beret']
+    106:['女','bob','jacket','clay','beret'],
+    107:['男','curls','coat','berry','scarf']
   };
   const outfits={
     berry:['#a64b52','#773443','#f3bc9f'],

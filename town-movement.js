@@ -13,7 +13,7 @@ const TownMovement = (() => {
     const platform=id=>[879,451+(id%4)*12];
     const door=id=>[891,451+(id%4)*12];
     const publicStops=(place,activity,id)=>activity==='trainBoard'?[door(id)]:activity==='trainWait'?[platform(id)]:
-      TownInteriors.uses(place,activity)?TownInteriors.stops(place):TownMap.stops[place];
+      TownFestivals.crowdStops[activity]??(TownInteriors.uses(place,activity)?TownInteriors.stops(place):TownMap.stops[place]);
     function twilightSeat(resident,place,activity){
       if(activity!=='twilight')return null;
       return TownAtmosphere.tables[place]?.seats[resident.id===TownTwilight.plan(world)?.host?0:1]??null;
@@ -77,7 +77,7 @@ const TownMovement = (() => {
       const home=place==='homes';
       const points=home?TownHomes.stops(walker.resident.id,activity,walker.resident.homePlot):publicStops(place,activity,walker.resident.id);
       const sameArea=TownInteriors.uses(place,activity)===TownInteriors.contains(place,walker.x,walker.y);
-      const special=delivery||['trainBoard','trainWait'].includes(activity)||walker.activity==='alight';
+      const special=delivery||TownFestivals.gathering(activity)||['trainBoard','trainWait'].includes(activity)||walker.activity==='alight';
       const stop=delivery?[delivery.at(-1).x,delivery.at(-1).y]:home?points[Math.floor(random()*points.length)]:
         twilightSeat(walker.resident,place,activity)??pickStop(points,walker,!special&&local&&sameArea);
       if(stop===walker.stop&&local&&sameArea&&!special){walker.wait=.45+random()*.8;return;}
@@ -196,8 +196,8 @@ const TownMovement = (() => {
           else if(walker.activity!==activity){
             const changesRoom=TownInteriors.uses(walker.place,walker.activity)!==TownInteriors.uses(walker.place,activity);
             walker.activity=activity;
-            if(walker.place==='homes'||changesRoom||activity==='twilight')start(walker,walker.place,activity);
-          }else if(roam&&walker.wait<=0&&!['twilight','trainWait','breadCart'].includes(activity))start(walker,walker.place,activity);
+            if(walker.place==='homes'||changesRoom||activity==='twilight'||TownFestivals.gathering(activity))start(walker,walker.place,activity);
+          }else if(roam&&walker.wait<=0&&!TownFestivals.gathering(activity)&&!['twilight','trainWait','breadCart'].includes(activity))start(walker,walker.place,activity);
         }
         const trip=walker.journey;
         if(!trip)continue;

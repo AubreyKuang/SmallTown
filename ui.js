@@ -1,7 +1,7 @@
 'use strict';
 const $=id=>document.getElementById(id);
 const KEY='god-dice-v1';
-const dialogs=['journal','stories','moment','rail','paper','fate','thread','twilight','supply','build','conversation'];
+const dialogs=['journal','stories','moment','rail','paper','fate','thread','twilight','supply','build','conversation','festival'];
 const conversationButtons=new Map();
 const music=TownMusic.create();
 const canvas=$('map'),ctx=canvas.getContext('2d');
@@ -177,7 +177,7 @@ function animate(now){
   if(frame===null)lastFrame=null;
 }
 function positionMapLinks(){
-  for(const [id,x,y] of [['openSchool',646,97],['openRail',822,363]]){
+  for(const [id,x,y] of [['openSchool',646,97],['openRail',822,363],['mapFestival',551,452]]){
     const point=camera.screen(x,y),button=$(id);
     button.hidden=choosingPlace||!!buildingType||point.x<58||point.x>TownCamera.width-58||point.y<14||point.y>TownCamera.height-62;
     button.style.left=`${point.x/TownCamera.width*100}%`;
@@ -209,7 +209,7 @@ canvas.addEventListener('click',event=>{
   },{pin:null,distance:Math.max(30,TownCamera.width/bounds.width*19)/camera.scale});
   const guest=TownRail.passengers(world.tick,tickProgress).find(pin=>
     pin.visitor&&Math.min(Math.hypot(x-pin.x,y-pin.y+4),Math.hypot(x-pin.x,y-pin.y+26))<Math.min(24,closest.distance));
-  if(guest){openRail(guest.visitor.id);return;}
+  if(guest){if(guest.visitor.id==='luye')openFestival();else openRail(guest.visitor.id);return;}
   if(closest.pin){
     chooseResident(closest.pin.resident.id);
     $('sideFate').closest('.controls-panel').scrollTop=0;
@@ -471,6 +471,35 @@ function renderCrossroads(){
   if(!cards.length)cards.push(storyNode('p','新的安排会在居民日程或聊天中出现。','story-meta'));
   panel.replaceChildren(storyNode('h2','居民的安排'),...cards);
 }
+function renderFestival(){
+  const upcoming=TownFestivals.upcoming(world.tick);
+  const next=upcoming[0],active=next.at<=world.tick;
+  $('mapFestival').textContent=active?'广场活动进行中':'活动 ›';
+  $('mapFestival').dataset.active=String(active);
+  $('openFestival').replaceChildren(storyNode('strong','广场活动'),
+    storyNode('small',active?next.name+' · 正在进行':when(next.at)+' · '+next.name));
+  if(!$('festival').open)return;
+  const cards=upcoming.map(event=>{
+    const card=storyNode('section','','resident-section');
+    card.append(storyNode('h3',event.name),storyNode('p',when(event.at)+' · 中央广场','story-meta'),storyNode('p',event.description));
+    const actions=storyNode('div','','story-actions');
+    if(event.guest&&world.tick<event.arrival){
+      card.append(storyNode('p',when(event.arrival)+' · 鹿野在微光镇站下车','story-meta'));
+      actions.append(storyButton('到站前等鹿野',()=>{
+        $('festival').close();observeAt(event.arrival-1);setRunning(true);
+      }));
+    }
+    if(world.tick<event.at-1)actions.append(storyButton('到活动开始前',()=>{
+      $('festival').close();observeAt(event.at-1);setRunning(true);
+    }));
+    if(actions.childElementCount)card.append(actions);
+    return card;
+  });
+  $('festivalPanel').replaceChildren(...cards);
+}
+function openFestival(){
+  $('festival').showModal();renderFestival();$('festivalTitle').focus();scheduleNext();refreshMotion();
+}
 function renderRail(){
   const {active,next,phase}=TownRail.schedule(world.tick),button=$('openRail');
   const status={approach:'正在进站',platform:'正在上下车',departure:'正在发车'};
@@ -485,6 +514,13 @@ function renderRail(){
     list.append(storyNode('li',`${when(service.start+1)} 停靠 · ${arrivals} 位下车 · ${departures} 位上车`));
   }
   const guests=storyNode('div','','rail-guests');
+  const concert=TownFestivals.upcoming(world.tick).find(event=>event.guest);
+  if(concert){
+    const card=storyNode('section','','resident-section');
+    card.append(storyNode('h3',concert.guest.name),storyNode('p',when(concert.arrival)+' 到站 · '+concert.name,'story-meta'),
+      storyButton('查看音乐会',()=>{$('rail').close();openFestival();}));
+    guests.append(card);
+  }
   for(const {profile,trip,history} of TownVisitors.timetable(world)){
     const card=storyNode('section','','resident-section');
     const heading=storyNode('h3',profile.name);
@@ -857,6 +893,7 @@ function render(){
   $('destinations').hidden=!choosingPlace;
   renderRail();
   renderCrossroads();
+  renderFestival();
   renderTwilight();
   renderSupply();
   renderBuild();
@@ -1013,6 +1050,8 @@ $('zoomOut').onclick=()=>cameraInput.zoomBy(1/1.2);
 $('zoomIn').onclick=()=>cameraInput.zoomBy(1.2);
 $('zoomReset').onclick=()=>{camera.reset();updateCamera();};
 $('openRail').onclick=()=>openRail();
+$('mapFestival').onclick=$('openFestival').onclick=openFestival;
+$('closeFestival').onclick=()=>$('festival').close();
 $('closeRail').onclick=()=>$('rail').close();
 $('openTwilight').onclick=()=>{$('twilight').showModal();renderTwilight();scheduleNext();refreshMotion();};
 $('closeTwilight').onclick=()=>$('twilight').close();

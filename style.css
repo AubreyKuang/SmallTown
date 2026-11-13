@@ -183,3 +183,6 @@ dialog{width:min(760px,calc(100% - 24px));max-height:88vh;border:1px solid var(-
 .crossroads-card button,.crossroads-options button{font-size:12px}
 .crossroads-options button,.build-choices button{text-align:left}
 .crossroads-options small,.build-choices small{display:block;margin-top:3px;color:var(--muted)}
+
+.festival-entry{position:absolute;transform:translateX(-50%);min-height:27px;padding:2px 8px;border-color:#aa8b60;background:#f1dcaa;font-size:12px;white-space:nowrap;box-shadow:0 2px 0 #76573e66}
+.festival-entry[data-active=true]{background:#edbd79}

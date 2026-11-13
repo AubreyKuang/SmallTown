@@ -2,8 +2,8 @@
 
 const TownRail=(()=>{
   const slots=[17,27,36];
-  const stops=[[438,244],[602,247],[795,270]];
-  const destinations=['bakery','cafe','market'];
+  const stops=[[438,244],[602,247],[795,270],[550,321]];
+  const destinations=['bakery','cafe','market','square'];
   const trackX=y=>901+Math.max(0,388-y)*.82;
   const count=(day,index)=>day<0?2:2+(day+index*2)%3;
   const service=(day,index)=>({day,index,start:day*48+slots[index],arrivals:count(day,index),
@@ -50,10 +50,10 @@ const TownRail=(()=>{
       for(let i=0;i<origin.arrivals;i++){
         const alight=origin.start+1.07+i*.09,board=next.start+1.56+i*.075;
         if(time<alight||time>=board+.15)continue;
-        const visit=TownVisitors.passenger(origin,i);
-        const p=route(visit?.profile.place??destinations[(origin.index+i)%destinations.length],i);
+        const visit=TownFestivals.passenger(origin,i)??TownVisitors.passenger(origin,i);
+        const p=route(visit?.profile.place??destinations[(origin.index+i)%3],i);
         let position,phase;
-        const explore=origin.start+2.2+i*.12,reach=visit?.reach??origin.start+5.6+i*.12;
+        const explore=visit?.profile.place==='square'?origin.start+2.7:origin.start+2.2+i*.12,reach=visit?.reach??origin.start+5.6+i*.12;
         const returnAt=visit?.leave??Math.max(reach,next.start-3.2-i*.08),queueAt=next.start+.36+i*.11;
         if(time<explore){
           position=TownMap.position(p.platformPath,fraction(time,alight,explore));phase='alight';

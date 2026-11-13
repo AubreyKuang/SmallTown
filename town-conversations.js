@@ -51,6 +51,10 @@ const TownConversations=(()=>{
           '门还没开吧？等有人住进去，那条路晚上就有灯了。','等搬家那天过去看看。'
         ],event);
       }
+      case 'festival-arrival':
+        return exchange('鹿野到站了',a,b,[
+          '你看见鹿野从午后的车上下来了吗？','还没。听说他提着手风琴，待会儿要去广场。','我等下路过广场，看看赶不赶得上。'
+        ],event);
       case 'visitor-arrival':
         return exchange('早班车上的旅客',a,b,[
           event.visitorName?`听说 ${event.visitorName} 坐早班车来了。`:'听说今天早班车带来了客人。',
@@ -63,6 +67,12 @@ const TownConversations=(()=>{
       case 'supply-close':
         return exchange('今天的面包摊',a,b,[
           '你听说了吗？面包摊收摊了。','又错过了。我还想着挑个脆边的呢。','明早路过的时候，记得先问几点出炉。'
+        ],event);
+      case 'festival-held':
+        return exchange(event.festivalName,a,b,[
+          `广场刚办完${event.festivalName}，你去了吗？`,
+          event.ids.includes(b.id)?'去了。站在喷泉边，身边都是熟面孔。':'我那会儿有事。下回得早点在日历上画一笔。',
+          '回头看看日报吧。也许还有熟人在上面。'
         ],event);
       case 'blackout':
         return exchange('镇上停电',a,b,[

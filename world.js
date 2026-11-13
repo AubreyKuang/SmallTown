@@ -90,7 +90,8 @@ const Town = (() => {
     if(school)return TownWishes.destination(w,p,school);
     if(w.power&&(p.id%5===0||p.id%7===0)&&h>=19+(p.id%3)*.5&&h<21+(p.id%2)*.5)return {place:'square',activity:'stars'};
     const routine=TownSkeptic.destination(w,p,TownRipples.destination(w,p,TownRelations.destination(w,p,TownWishes.destination(w,p,TownRoutines.daily(w,p)))));
-    return TownSupply.assignment(w,p,TownTwilight.destination(w,p,TownCrossroads.neighborhood(w,p,routine)));
+    const everyday=TownTwilight.destination(w,p,TownCrossroads.neighborhood(w,p,routine));
+    return TownSupply.assignment(w,p,TownFestivals.destination(w,p,everyday));
   }
   function activity(w,p){
     if(Object.hasOwn(TownRoutines.labels,p.activity))return p.activity;
@@ -239,6 +240,7 @@ const Town = (() => {
     });
     TownSkeptic.step(w,(...args)=>log(w,...args),(...args)=>memory(w,...args));
     TownRipples.step(w,(...args)=>log(w,...args));
+    TownFestivals.step(w,(...args)=>log(w,...args));
     TownCrossroads.settle(w,(...args)=>log(w,...args),(...args)=>memory(w,...args));
     TownGoals.check(w);
     TownPaper.track(w);

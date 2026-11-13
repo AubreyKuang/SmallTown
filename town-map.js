@@ -265,6 +265,44 @@ const TownMap = (() => {
       ctx.restore();
     }
   }
+  function festivalScenery(ctx,world,time){
+    const event=TownFestivals.plan(Math.floor(world.tick/48));
+    if(!event||world.tick<event.at-3||world.tick>=event.until)return;
+    const {activity}=event;
+    const palette=activity==='festival'?['#edc476','#779f94','#bb786c']:['#e7ac74','#edda9c','#a4b58d'];
+    for(const x of [480,618]){
+      line(ctx,[[x,354],[x,302]],'#745839',2.4);
+      ellipse(ctx,x,355,4,2.5,'#806744');
+    }
+    const cord=x=>303+12*Math.sin(Math.PI*(x-480)/138);
+    line(ctx,Array.from({length:11},(_,i)=>[480+i*13.8,cord(480+i*13.8)]),'#795e3d',1);
+    for(let i=1;i<12;i++){
+      const x=480+i*11.5,y=cord(x),color=palette[i%palette.length];
+      if(activity==='festival'){
+        const sway=Math.sin(time/650+i)*2;
+        line(ctx,[[x,y],[x+sway,y+6]],'#795e3d',.7);
+        ellipse(ctx,x+sway,y+7,2.9,3.7,color);
+        ellipse(ctx,x+sway,y+7,4.4,4.6,'#ffdc783d');
+      }else polygon(ctx,[[x-4,y],[x+4,y],[x+.5,y+8]],color);
+    }
+    if(activity==='concert'){
+      ellipse(ctx,550,326,32,8,'#7b563e44');
+      ellipse(ctx,550,323,28,8,'#875e46');
+      ellipse(ctx,550,321,27,7,'#d6a670');
+      for(const x of [524,576])line(ctx,[[x,323],[x,315]],'#724c36',1.3);
+    }else{
+      if(activity==='festival'&&world.weather==='细雨'){
+        polygon(ctx,[[470,336],[491,336],[503,345],[462,345]],'#a97d66');
+        line(ctx,[[465,345],[465,357]],'#745839',1.5);
+        line(ctx,[[500,345],[500,357]],'#745839',1.5);
+      }
+      for(const x of [479,622]){
+        ellipse(ctx,x,358,11,4,'#806744');
+        ellipse(ctx,x,355,12,4.8,activity==='party'?'#da9475':'#98ae87');
+        for(const dx of [-6,0,6])ellipse(ctx,x+dx,354,2.5,1.7,'#f8df9d');
+      }
+    }
+  }
   function draw(ctx,world,selection,displayWidth,pins,choosingPlace,interiors,time=0,progress=0,cargo=null,buildingType=null){
     const labelScale=Math.min(1.8,Math.max(1,640/displayWidth));
     const light=TownAtmosphere.light(world.tick,progress);
@@ -273,20 +311,29 @@ const TownMap = (() => {
     TownArt.keepsakes(ctx,world.keepsakes??[],night,{polygon,ellipse,line},interiors);
     TownBuildArt.draw(ctx,world,interiors,night&&!world.power,{polygon,ellipse,line});
     TownAtmosphere.scenery(ctx,world,time,light,river,interiors,{ellipse,line});
+    festivalScenery(ctx,world,time);
     rollingStock(ctx,TownRail.train(world.tick,progress));
     TownTradeArt.trade(ctx,world,cargo,time,{polygon,ellipse,line},interiors);
     for(const traveler of TownRail.passengers(world.tick,progress)){
       const {id,x,y,phase,visitor}=traveler;
       const walking=['alight','walk','board'].includes(phase);
       TownCharacters.draw(ctx,id,x,y,{step:walking?Math.sin(time/110+id)*1.4:0,scale:1.1},characterBrushes);
-      ctx.fillStyle='#96684e';ctx.fillRect(x+7,y+1,3.5,4);
-      line(ctx,[[x+7.6,y+1],[x+7.6,y],[x+9.2,y]],'#6a4e3b',.8);
+      if(visitor?.id==='luye'&&phase==='visit'){
+        const stretch=Math.sin(time/155)*1.5;
+        ctx.fillStyle='#533933';ctx.fillRect(x-5,y-4,10,6);
+        ctx.fillStyle='#ce9c65';ctx.fillRect(x-3,y-3,6+stretch,4);
+        for(let i=0;i<3;i++)line(ctx,[[x-2+i*2,y-3],[x-2+i*2,y+1]],'#765441',.5);
+        ctx.fillStyle='#f4e1ae';ctx.fillRect(x+3,y-3,2,4);
+      }else{
+        ctx.fillStyle='#96684e';ctx.fillRect(x+7,y+1,3.5,4);
+        line(ctx,[[x+7.6,y+1],[x+7.6,y],[x+9.2,y]],'#6a4e3b',.8);
+      }
       if(visitor){
         ctx.font=`600 ${13*labelScale}px system-ui, sans-serif`;
         ctx.textAlign='center';ctx.textBaseline='middle';
         const w=ctx.measureText(visitor.name).width+12;
         ctx.beginPath();ctx.roundRect(x-w/2,y-21-17*labelScale,w,17*labelScale,4);
-        ctx.fillStyle='#63462e';ctx.fill();
+        ctx.fillStyle=visitor.id==='luye'?'#835056':'#63462e';ctx.fill();
         ctx.fillStyle='#fff3d6';ctx.fillText(visitor.name,x,y-21-8.5*labelScale);
       }
     }

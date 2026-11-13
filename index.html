@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#263e35">
 <title>上帝扔骰子 · 微光镇</title>
-<link rel="stylesheet" href="style.css?v=25">
+<link rel="stylesheet" href="style.css?v=26">
 </head>
 <body>
 <main class="game">
@@ -34,6 +34,7 @@
       </div>
       <button id="openSchool" class="school-entry" aria-label="查看学校日常">学校 ›</button>
       <button id="openRail" class="rail-entry" aria-label="查看列车时刻">列车 ›</button>
+      <button id="mapFestival" class="festival-entry" aria-label="查看广场活动">活动 ›</button>
       <div id="mapConversations" aria-label="正在交谈的居民"></div>
       <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
     </div>
@@ -88,6 +89,7 @@
       <button id="openSupply" class="side-link"></button>
     </section>
     <section class="side-content" id="sideTown" role="tabpanel" aria-labelledby="side-town" hidden>
+      <button id="openFestival" class="side-link"></button>
       <section id="crossroads" aria-label="居民的安排"></section>
       <button id="mapStory" class="side-link" hidden><strong id="mapStoryLabel"></strong><small id="mapStoryText"></small></button>
       <button id="openTwilight" class="side-link"></button>
@@ -96,6 +98,10 @@
     </section>
   </aside>
 </section>
+<dialog id="festival" aria-labelledby="festivalTitle">
+  <div class="journal-head"><h2 id="festivalTitle" tabindex="-1">广场活动</h2><button id="closeFestival" aria-label="关闭活动日历">×</button></div>
+  <div id="festivalPanel" class="story-panel"></div>
+</dialog>
 <dialog id="build" aria-labelledby="buildTitle">
   <div class="journal-head"><h2 id="buildTitle" tabindex="-1">小镇建设</h2><button id="closeBuild" aria-label="关闭小镇建设">×</button></div>
   <div id="buildPanel" class="story-panel"></div>
@@ -148,5 +154,5 @@
   <div class="save-controls"><button id="export">导出存档</button><button id="importButton">导入存档</button><input id="import" type="file" accept="application/json,.json" hidden><label><input id="offline" type="checkbox"> 离线推进</label></div>
 </dialog>
 </main>
-<script src="npc-memory.js"></script><script src="save-manager.js?v=2"></script><script src="town-school.js?v=2"></script><script src="town-stories.js?v=5"></script><script src="town-routines.js?v=17"></script><script src="town-moments.js?v=3"></script><script src="town-visitors.js?v=2"></script><script src="town-rail.js?v=2"></script><script src="town-wishes.js?v=3"></script><script src="town-relations.js?v=2"></script><script src="town-ripples.js?v=5"></script><script src="town-skeptic.js?v=1"></script><script src="town-goals.js?v=2"></script><script src="town-watch.js?v=5"></script><script src="town-twilight.js?v=1"></script><script src="town-paper.js?v=8"></script><script src="town-supply.js?v=3"></script><script src="town-build.js?v=2"></script><script src="town-travel.js?v=2"></script><script src="town-crossroads.js?v=1"></script><script src="town-conversations.js?v=3"></script><script src="world.js?v=21"></script><script src="town-homes.js?v=6"></script><script src="town-interiors.js?v=4"></script><script src="town-trade-art.js?v=2"></script><script src="town-art.js?v=9"></script><script src="town-atmosphere.js?v=1"></script><script src="town-camera.js?v=1"></script><script src="town-build-art.js?v=1"></script><script src="town-characters.js?v=1"></script><script src="town-map.js?v=18"></script><script src="town-movement.js?v=14"></script><script src="town-cards.js?v=1"></script><script src="town-music.js?v=1"></script><script src="ui.js?v=26"></script>
+<script src="npc-memory.js"></script><script src="save-manager.js?v=2"></script><script src="town-school.js?v=2"></script><script src="town-stories.js?v=5"></script><script src="town-routines.js?v=18"></script><script src="town-moments.js?v=3"></script><script src="town-visitors.js?v=2"></script><script src="town-rail.js?v=3"></script><script src="town-festivals.js?v=1"></script><script src="town-wishes.js?v=3"></script><script src="town-relations.js?v=2"></script><script src="town-ripples.js?v=5"></script><script src="town-skeptic.js?v=1"></script><script src="town-goals.js?v=2"></script><script src="town-watch.js?v=5"></script><script src="town-twilight.js?v=1"></script><script src="town-paper.js?v=9"></script><script src="town-supply.js?v=3"></script><script src="town-build.js?v=2"></script><script src="town-travel.js?v=2"></script><script src="town-crossroads.js?v=1"></script><script src="town-conversations.js?v=4"></script><script src="world.js?v=22"></script><script src="town-homes.js?v=6"></script><script src="town-interiors.js?v=4"></script><script src="town-trade-art.js?v=2"></script><script src="town-art.js?v=9"></script><script src="town-atmosphere.js?v=1"></script><script src="town-camera.js?v=1"></script><script src="town-build-art.js?v=1"></script><script src="town-characters.js?v=2"></script><script src="town-map.js?v=19"></script><script src="town-movement.js?v=15"></script><script src="town-cards.js?v=1"></script><script src="town-music.js?v=1"></script><script src="ui.js?v=27"></script>
 </body></html>

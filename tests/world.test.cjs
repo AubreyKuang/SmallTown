@@ -2,8 +2,8 @@ const assert = require('node:assert/strict');
 const {test} = require('node:test');
 const {readFileSync} = require('node:fs');
 const vm = require('node:vm');
-const source=['npc-memory.js','save-manager.js','town-school.js','town-stories.js','town-routines.js','town-moments.js','town-visitors.js','town-rail.js','town-wishes.js','town-relations.js','town-ripples.js','town-skeptic.js','town-goals.js','town-watch.js','town-twilight.js','town-supply.js','town-paper.js','town-build.js','town-travel.js','town-crossroads.js','town-conversations.js','world.js','town-homes.js','town-interiors.js','town-atmosphere.js','town-characters.js','town-map.js','town-movement.js'].map(name=>readFileSync(require('node:path').join(__dirname,'..',name),'utf8')).join('\n');
-const {Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes,TownRelations,TownRipples,TownSkeptic,TownGoals,TownPaper,TownWatch,TownVisitors,TownTwilight,TownAtmosphere,TownSupply,TownBuild,TownTravel,TownCrossroads,TownConversations,TownCharacters}=vm.runInNewContext(source+'\n({Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes,TownRelations,TownRipples,TownSkeptic,TownGoals,TownPaper,TownWatch,TownVisitors,TownTwilight,TownAtmosphere,TownSupply,TownBuild,TownTravel,TownCrossroads,TownConversations,TownCharacters})');
+const source=['npc-memory.js','save-manager.js','town-school.js','town-stories.js','town-routines.js','town-moments.js','town-visitors.js','town-rail.js','town-festivals.js','town-wishes.js','town-relations.js','town-ripples.js','town-skeptic.js','town-goals.js','town-watch.js','town-twilight.js','town-supply.js','town-paper.js','town-build.js','town-travel.js','town-crossroads.js','town-conversations.js','world.js','town-homes.js','town-interiors.js','town-atmosphere.js','town-characters.js','town-map.js','town-movement.js'].map(name=>readFileSync(require('node:path').join(__dirname,'..',name),'utf8')).join('\n');
+const {Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownFestivals,TownWishes,TownRelations,TownRipples,TownSkeptic,TownGoals,TownPaper,TownWatch,TownVisitors,TownTwilight,TownAtmosphere,TownSupply,TownBuild,TownTravel,TownCrossroads,TownConversations,TownCharacters}=vm.runInNewContext(source+'\n({Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownFestivals,TownWishes,TownRelations,TownRipples,TownSkeptic,TownGoals,TownPaper,TownWatch,TownVisitors,TownTwilight,TownAtmosphere,TownSupply,TownBuild,TownTravel,TownCrossroads,TownConversations,TownCharacters})');
 function to(w,t){while(w.tick<t)Town.step(w);}
 function visualRandom(seed){
   return ()=>{
@@ -1020,4 +1020,44 @@ test('home plots create distinct errands, clues and recurring neighbors',()=>{
     assert.ok(NPCMemory.recall(w,resident.id).some(m=>m.type==='neighborhood'&&m.subject===String(contact)),plot);
     assert.ok(Town.valid(w));
   }
+});
+
+test('the recurring plaza calendar leaves residents on their own schedules between events',()=>{
+  const w=Town.create(8);
+  assert.deepEqual(Array.from(TownFestivals.upcoming(w.tick),e=>e.activity),['party','festival','concert']);
+  assert.equal(TownFestivals.plan(8).activity,'party');
+  assert.equal(TownFestivals.plan(3),null);
+  const party=TownFestivals.plan(1);
+  to(w,party.at+1);
+  const held=w.events.find(e=>e.type==='festival-held');
+  assert.ok(held.ids.length>0&&held.ids.length<w.people.length);
+  assert.ok(held.ids.every(id=>NPCMemory.recall(w,id).some(m=>m.type==='festival-held')));
+  to(w,party.until);
+  assert.ok(w.people.every(p=>p.activity!=='party'));
+  to(w,96);
+  assert.ok(w.papers.at(-1).sections.some(s=>s.label==='广场与来访'));
+});
+
+test('the headliner disembarks before going to the stage, with residents at both stops',()=>{
+  const w=Town.create(8),concert=TownFestivals.plan(4);
+  const guestAt=(tick,progress=0)=>TownRail.passengers(tick,progress).find(p=>p.visitor?.id==='luye');
+  assert.equal(guestAt(concert.arrival-1),undefined);
+  const platform=guestAt(concert.arrival,.5);
+  assert.equal(platform.phase,'alight');
+  assert.ok(platform.x>=822);
+  assert.equal(guestAt(concert.arrival+3).phase,'walk');
+  assert.deepEqual([guestAt(concert.at).x,guestAt(concert.at).y],[550,321]);
+  assert.equal(guestAt(4*48+37,.65).phase,'board');
+  assert.equal(guestAt(4*48+38),undefined);
+  to(w,concert.arrival);
+  const greeting=w.events.find(e=>e.type==='festival-arrival');
+  assert.ok(greeting.ids.length>0);
+  assert.ok(greeting.ids.every(id=>w.people.find(p=>p.id===id).place==='station'));
+  const loaded=JSON.parse(JSON.stringify(w));
+  assert.ok(Town.valid(loaded));
+  to(loaded,concert.at+1);
+  const held=loaded.events.find(e=>e.festivalName===concert.name);
+  assert.ok(held.ids.length>0);
+  assert.ok(held.ids.some(id=>greeting.ids.includes(id)));
+  assert.equal(loaded.events.filter(e=>e.type==='festival-arrival').length,1);
 });

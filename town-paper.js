@@ -111,6 +111,8 @@ const TownPaper=(()=>{
     if(twilight)sections.push({label:'河畔灯笺',text:twilight.text});
     const settlement=events.filter(e=>e.type==='build-move-in'||e.type==='build-ready');
     if(settlement.length)sections.push({label:'小镇建设',text:settlement.map(e=>e.text).join('\n')});
+    const festivals=events.filter(e=>e.type==='festival-arrival'||e.type==='festival-held');
+    if(festivals.length)sections.push({label:'广场与来访',text:festivals.map(e=>e.text).join('\n')});
     const crossroads=events.filter(e=>e.type==='crossroads-result');
     if(crossroads.length)sections.push({label:'临时改变的安排',text:crossroads.map(e=>e.text).join('\n')});
     const travel=events.filter(e=>e.type==='travel-depart'||e.type==='travel-return');
