@@ -120,7 +120,7 @@ const TownMovement = (() => {
       a.group=b.group=null;
       a.cooldown=6+random()*6;b.cooldown=6+random()*6;
       groups.delete(group);
-      if(completed&&type==='talk')onConversation(a.resident.id,b.resident.id);
+      if(completed&&type==='talk')onConversation(a.resident.id,b.resident.id,group.conversation);
     }
     function meet(){
       if(groups.size>=4)return;
@@ -139,7 +139,8 @@ const TownMovement = (() => {
           const familiar=(a.resident.trust[b.resident.id]||0)+(b.resident.trust[a.resident.id]||0)>0;
           const canChat=dist<=23&&(!sameWay||familiar)&&random()<(familiar?.75:.46);
           if(!sameWay&&!canChat)continue;
-          const group={a,b,type:canChat?'talk':'walk',remaining:canChat?1.8+random()*1.3:3+random()*2};
+          const group={a,b,type:canChat?'talk':'walk',remaining:canChat?4.8+random()*1.6:3+random()*2};
+          if(canChat)group.conversation=TownConversations.create(world,a.resident,b.resident);
           a.group=b.group=group;groups.add(group);
           return;
         }
@@ -216,7 +217,7 @@ const TownMovement = (() => {
     const aboard=w=>w.activity==='trainBoard'&&!w.journey&&distance(w.x,w.y,door(w.resident.id))<.01;
     function pins(){
       return walkers.filter(w=>!aboard(w)).map(w=>({resident:w.resident,place:w.place,x:w.x,y:w.y,activity:w.activity,
-        indoors:inside(w),social:w.group?.type,partner:w.group?(w.group.a===w?w.group.b:w.group.a).resident.id:null,
+        indoors:inside(w),social:w.group?.type,conversation:w.group?.conversation,partner:w.group?(w.group.a===w?w.group.b:w.group.a).resident.id:null,
         movingTo:w.journey?.transit?w.journey.place:null,cart:w.journey?.cartStart!=null&&w.journey.traveled>=w.journey.cartStart,
         step:w.journey&&w.group?.type!=='talk'?Math.sin(w.stride)*1.6:0}))
         .sort((a,b)=>a.y-b.y);

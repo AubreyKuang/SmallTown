@@ -2,8 +2,8 @@ const assert = require('node:assert/strict');
 const {test} = require('node:test');
 const {readFileSync} = require('node:fs');
 const vm = require('node:vm');
-const source=['npc-memory.js','save-manager.js','town-school.js','town-stories.js','town-routines.js','town-moments.js','town-visitors.js','town-rail.js','town-wishes.js','town-relations.js','town-ripples.js','town-skeptic.js','town-goals.js','town-watch.js','town-twilight.js','town-supply.js','town-paper.js','town-build.js','town-travel.js','world.js','town-homes.js','town-interiors.js','town-atmosphere.js','town-map.js','town-movement.js'].map(name=>readFileSync(require('node:path').join(__dirname,'..',name),'utf8')).join('\n');
-const {Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes,TownRelations,TownRipples,TownSkeptic,TownGoals,TownPaper,TownWatch,TownVisitors,TownTwilight,TownAtmosphere,TownSupply,TownBuild,TownTravel}=vm.runInNewContext(source+'\n({Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes,TownRelations,TownRipples,TownSkeptic,TownGoals,TownPaper,TownWatch,TownVisitors,TownTwilight,TownAtmosphere,TownSupply,TownBuild,TownTravel})');
+const source=['npc-memory.js','save-manager.js','town-school.js','town-stories.js','town-routines.js','town-moments.js','town-visitors.js','town-rail.js','town-wishes.js','town-relations.js','town-ripples.js','town-skeptic.js','town-goals.js','town-watch.js','town-twilight.js','town-supply.js','town-paper.js','town-build.js','town-travel.js','town-conversations.js','world.js','town-homes.js','town-interiors.js','town-atmosphere.js','town-map.js','town-movement.js'].map(name=>readFileSync(require('node:path').join(__dirname,'..',name),'utf8')).join('\n');
+const {Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes,TownRelations,TownRipples,TownSkeptic,TownGoals,TownPaper,TownWatch,TownVisitors,TownTwilight,TownAtmosphere,TownSupply,TownBuild,TownTravel,TownConversations}=vm.runInNewContext(source+'\n({Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes,TownRelations,TownRipples,TownSkeptic,TownGoals,TownPaper,TownWatch,TownVisitors,TownTwilight,TownAtmosphere,TownSupply,TownBuild,TownTravel,TownConversations})');
 function to(w,t){while(w.tick<t)Town.step(w);}
 function visualRandom(seed){
   return ()=>{
@@ -307,8 +307,9 @@ test('slower walkers can reroute in mid-journey without jumping or visiting the 
 });
 test('people can match walking pace and stop for a conversation that becomes a memory',()=>{
   const w=Town.create(8);to(w,17);
-  const crowd=TownMovement.create(w,visualRandom(3),(a,b)=>Town.roadTalk(w,a,b));
+  const crowd=TownMovement.create(w,visualRandom(3),(a,b,chat)=>Town.roadTalk(w,a,b,chat));
   let sharedSteps=0,talkingStops=0;
+  const observed=new Map();
   for(let i=0;i<1500;i++){
     if(i>0&&i%144===0)Town.step(w);
     const before=new Map(crowd.pins().map(p=>[p.resident.id,p]));
@@ -326,6 +327,8 @@ test('people can match walking pace and stop for a conversation that becomes a m
       if(p.social==='talk'&&old.social==='talk'&&old.partner===p.partner){
         assert.equal(moved,0);
         talkingStops++;
+        assert.strictEqual(p.conversation,byId.get(p.partner).conversation);
+        observed.set([p.resident.id,p.partner].sort().join(','),p.conversation);
       }
     }
   }
@@ -333,6 +336,8 @@ test('people can match walking pace and stop for a conversation that becomes a m
   assert.ok(talkingStops>50);
   const chat=w.events.find(e=>e.type==='road-talk');
   assert.ok(chat);
+  assert.ok(chat.dialogue.length>=2);
+  assert.ok([...observed.values()].some(conversation=>conversation.lines===chat.dialogue));
   assert.ok(chat.ids.every(id=>NPCMemory.recall(w,id).some(memory=>memory.type==='road-talk')));
   assert.equal(Town.roadTalk(w,...chat.ids),false);
 });
@@ -850,4 +855,33 @@ test('the bread cart follows its carrier after pickup without relocating the res
   for(let i=0;i<900&&!pin().cart;i++)crowd.advance(.05,false);
   assert.ok(pin().cart);
   assert.ok(Math.hypot(pickup.x-pin().x,pickup.y-pin().y)<2.3);
+});
+
+test('town gossip uses recent public events and records the exact dialogue once',()=>{
+  const w=Town.create(8),[a,b]=w.people;
+  w.tick=11;
+  w.events.push({id:++w.sequence,type:'build-ready',tick:10,ids:[],text:'新房竣工了。'},
+    {id:++w.sequence,type:'date-result',tick:11,ids:[1,2],text:'两人的私事。'});
+  const chat=TownConversations.create(w,a,b);
+  assert.equal(chat.topic,'新房落成');
+  assert.equal(chat.source,1);
+  assert.ok(chat.lines.some(line=>line.speaker===a.id));
+  assert.ok(chat.lines.some(line=>line.speaker===b.id));
+  assert.ok(Town.roadTalk(w,a.id,b.id,chat));
+  assert.strictEqual(w.events.at(-1).dialogue,chat.lines);
+  assert.equal(w.events.at(-1).parent,chat.source);
+  assert.equal(Town.roadTalk(w,b.id,a.id,chat),false);
+  assert.ok(NPCMemory.recall(w,a.id).some(m=>m.interpretation.includes(chat.topic)));
+});
+
+test('a returning traveler shares their own memory when talking with a neighbor',()=>{
+  const w=Town.create(8);
+  const [a,b]=w.people;
+  assert.ok(Town.bookTrip(w,a));
+  to(w,TownTravel.tripFor(w,a).back);
+  const chat=TownConversations.create(w,b,a);
+  const memory=NPCMemory.recall(w,a.id).find(m=>m.type==='travel-return');
+  assert.equal(chat.topic,'刚回镇的旅程');
+  assert.equal(chat.lines[1].speaker,a.id);
+  assert.equal(chat.lines[1].text,memory.interpretation);
 });

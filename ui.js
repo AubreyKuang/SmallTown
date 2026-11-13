@@ -1,6 +1,8 @@
 'use strict';
 const $=id=>document.getElementById(id);
 const KEY='god-dice-v1';
+const dialogs=['journal','stories','moment','rail','wish','paper','fate','thread','twilight','supply','build','conversation'];
+const conversationButtons=new Map();
 const music=TownMusic.create();
 const canvas=$('map'),ctx=canvas.getContext('2d');
 const motion=window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -109,10 +111,43 @@ function paint(){
   TownMap.draw(ctx,world,p.id,canvas.clientWidth*camera.scale,visiblePins,choosingPlace,interiors,animationTime,progress,cargo,buildingType);
   drawPulses();
   ctx.restore();
+  paintConversations(p.id);
+}
+function paintConversations(selection){
+  const active=new Set();
+  if(!choosingPlace&&!buildingType){
+    for(const pin of visiblePins){
+      if(!pin.conversation||pin.resident.id>=pin.partner)continue;
+      const other=visiblePins.find(candidate=>candidate.resident.id===pin.partner);
+      if(!other||!interiors&&(pin.indoors||other.indoors))continue;
+      const labelClearance=selection===pin.resident.id||selection===pin.partner?18:0;
+      const point=camera.screen((pin.x+other.x)/2,Math.min(pin.y,other.y)-26-labelClearance);
+      if(point.x<0||point.x>TownCamera.width||point.y<0||point.y>TownCamera.height)continue;
+      const chat=pin.conversation,people=[pin.resident,other.resident];
+      active.add(chat);
+      let button=conversationButtons.get(chat);
+      if(!button){
+        button=storyButton('',()=>openConversation(chat,people),'map-conversation');
+        button.setAttribute('aria-label',`听 ${people[0].name} 和 ${people[1].name} 的对话`);
+        button.setAttribute('aria-haspopup','dialog');
+        button.append(storyNode('span','•••'));
+        $('mapConversations').append(button);
+        conversationButtons.set(chat,button);
+      }
+      button.style.left=`${point.x/TownCamera.width*100}%`;
+      button.style.top=`${point.y/TownCamera.height*100}%`;
+    }
+  }
+  for(const [chat,button] of conversationButtons){
+    if(active.has(chat))continue;
+    if(document.activeElement===button)canvas.focus({preventScroll:true});
+    button.remove();
+    conversationButtons.delete(chat);
+  }
 }
 function createCrowd(){
-  return TownMovement.create(world,Math.random,(a,b)=>{
-    if(Town.roadTalk(world,a,b))heardConversation=true;
+  return TownMovement.create(world,Math.random,(a,b,chat)=>{
+    if(Town.roadTalk(world,a,b,chat))heardConversation=true;
   },world.walkingPositions);
 }
 function resetCrowd(){
@@ -171,6 +206,12 @@ canvas.addEventListener('click',event=>{
     const distance=Math.hypot(x-pin.x,y-pin.y+4);
     return distance<best.distance?{pin,distance}:best;
   },{pin:null,distance:Math.max(30,TownCamera.width/bounds.width*19)/camera.scale});
+  const talk=closest.pin;
+  const partner=talk?.conversation&&visiblePins.find(pin=>pin.resident.id===talk.partner);
+  if(partner&&(interiors||!partner.indoors)){
+    openConversation(talk.conversation,[talk.resident,partner.resident]);
+    return;
+  }
   const guest=TownRail.passengers(world.tick,tickProgress).find(pin=>
     pin.visitor&&Math.min(Math.hypot(x-pin.x,y-pin.y+4),Math.hypot(x-pin.x,y-pin.y+26))<Math.min(24,closest.distance));
   if(guest){openRail(guest.visitor.id);return;}
@@ -180,7 +221,7 @@ canvas.addEventListener('click',event=>{
   }else if(TownTradeArt.hit(x,y)||['bakery','market'].includes(TownMap.findPlace(x,y)))openSupply();
 });
 function when(tick){return `第 ${Math.floor(tick/48)+1} 天 ${String(Math.floor(tick%48/2)).padStart(2,'0')}:${tick%2?'30':'00'}`;}
-const modalOpen=()=>['journal','stories','moment','rail','wish','paper','fate','thread','twilight','supply','build'].some(id=>$(id).open);
+const modalOpen=()=>dialogs.some(id=>$(id).open);
 function storyNode(tag,value,css){
   const node=document.createElement(tag);
   node.textContent=value;
@@ -771,7 +812,7 @@ function render(){
   renderBuild();
   if($('moment').open)renderMoment();
   if($('wish').open)renderWish();
-  $('mapHint').textContent=choosingPlace?`给 ${p.name} 点一个目的地`:buildingType?'点击编号地块确认施工':'点击居民查看档案';
+  $('mapHint').textContent=choosingPlace?`给 ${p.name} 点一个目的地`:buildingType?'点击编号地块确认施工':'点气泡听对话 · 点居民看档案';
   const moment=TownMoments.active(world);
   const latest=world.events.findLast(e=>e.type!=='town');
   $('mapStory').hidden=!moment;
@@ -917,6 +958,31 @@ $('openRail').onclick=()=>openRail();
 $('closeRail').onclick=()=>$('rail').close();
 $('openTwilight').onclick=()=>{$('twilight').showModal();renderTwilight();scheduleNext();refreshMotion();};
 $('closeTwilight').onclick=()=>$('twilight').close();
+function openConversation(chat,people){
+  $('conversationTitle').textContent=chat.topic;
+  const list=storyNode('ol','','conversation-lines');
+  for(const line of chat.lines){
+    const speaker=people.find(person=>person.id===line.speaker);
+    const row=storyNode('li','',`conversation-line${line.speaker===chat.lines[0].speaker?'':' conversation-reply'}`);
+    row.append(storyNode('strong',speaker.name),storyNode('p',line.text));
+    list.append(row);
+  }
+  const profiles=storyNode('div','','conversation-profiles');
+  for(const p of people){
+    const button=storyButton('',()=>{chooseResident(p.id);openResidentProfile();});
+    const portrait=document.createElement('canvas');
+    portrait.width=portrait.height=64;
+    portrait.setAttribute('aria-hidden','true');
+    TownMap.portrait(portrait,p);
+    button.append(portrait,storyNode('span',`${p.name} 的档案`));
+    profiles.append(button);
+  }
+  $('conversationPanel').replaceChildren(list,profiles);
+  $('conversation').showModal();
+  scheduleNext();
+  refreshMotion();
+}
+$('closeConversation').onclick=()=>$('conversation').close();
 function openResidentProfile(){
   renderWish();
   $('wish').showModal();
@@ -925,7 +991,7 @@ function openResidentProfile(){
 }
 $('openWish').onclick=openResidentProfile;
 $('closeWish').onclick=()=>$('wish').close();
-for(const id of ['journal','stories','moment','rail','wish','paper','fate','thread','twilight','supply','build'])$(id).addEventListener('close',()=>{scheduleNext();refreshMotion();});
+for(const id of dialogs)$(id).addEventListener('close',()=>{scheduleNext();refreshMotion();});
 $('music').onclick=async()=>{
   const button=$('music');
   button.disabled=true;

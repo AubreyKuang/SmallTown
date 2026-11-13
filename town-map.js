@@ -220,12 +220,6 @@ const TownMap = (() => {
     }
     return path.points.at(-1);
   }
-  function conversation(ctx,x,y,time){
-    ctx.fillStyle='#fff2d6';ctx.strokeStyle='#9b7754';ctx.lineWidth=1;
-    ctx.beginPath();ctx.roundRect(x-9,y-31,18,11,4);ctx.fill();ctx.stroke();
-    polygon(ctx,[[x-3,y-21],[x+1,y-21],[x-3,y-17]],'#fff2d6');
-    for(let i=0;i<3;i++)ellipse(ctx,x-4+i*4,y-25,1.1,1.1,Math.floor(time/240)%3===i?'#573e32':'#b78d60');
-  }
   function figure(ctx,resident,x,y,step=0,scale=1){
     ctx.save();ctx.translate(x,y);ctx.scale(scale,scale);
     ellipse(ctx,0,4,7,3,'#33463355');
@@ -332,12 +326,6 @@ const TownMap = (() => {
       const w=ctx.measureText(active.resident.name).width+18;
       ctx.beginPath();ctx.roundRect(active.x-w/2,active.y-21-10*labelScale,w,19*labelScale,5);ctx.fillStyle='#344b3b';ctx.fill();
       ctx.fillStyle='#fff4d4';ctx.fillText(active.resident.name,active.x,active.y-21);
-    }
-    for(const {resident,x,y,social,partner} of pins){
-      if(social!=='talk'||resident.id>=partner)continue;
-      const other=pins.find(pin=>pin.resident.id===partner);
-      const labelClearance=selection===resident.id||selection===partner?18:0;
-      conversation(ctx,(x+other.x)/2,Math.min(y,other.y)-labelClearance,time);
     }
     return pins;
   }

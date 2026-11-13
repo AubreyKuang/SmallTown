@@ -57,17 +57,17 @@ const Town = (() => {
     ]);
     a.trust[b.id]=Math.max(-100,Math.min(100,(a.trust[b.id]||0)+Math.round(emotion*12)));
   }
-  function roadTalk(w,first,second){
+  function roadTalk(w,first,second,conversation){
     const a=w.people.find(p=>p.id===first),b=w.people.find(p=>p.id===second);
     if(!a||!b||a===b||TownTravel.away(a)||TownTravel.away(b))return false;
     const recent=w.events.filter(e=>e.type==='road-talk'&&e.tick>=w.tick-w.tick%48);
     if(recent.some(e=>e.ids.includes(first)&&e.ids.includes(second))||recent.filter(e=>e.tick===w.tick).length>=2)return false;
-    const topic=TownSchool.student(a)&&TownSchool.student(b)?'聊了几句学校里的事':
-      w.weather==='晴朗'?['聊了聊接下来要去哪儿','交换了几句小镇近况','聊起了今天的日程'][(first+second+w.tick)%3]:
-        '聊了聊今天的天气';
-    const source=log(w,`${a.name} 和 ${b.name} 路上停了一会儿，${topic}。`,null,'road-talk',[first,second]);
-    memory(w,a,b,'road-talk',.24,`路上碰见 ${b.name}，我们${topic}。`,source,45);
-    memory(w,b,a,'road-talk',.24,`路上碰见 ${a.name}，我们${topic}。`,source,45);
+    const chat=conversation??TownConversations.create(w,a,b);
+    const parent=w.events.some(event=>event.id===chat.source)?chat.source:null;
+    const source=log(w,`${a.name} 和 ${b.name} 路上停了一会儿，聊起了${chat.topic}。`,parent,'road-talk',[first,second]);
+    w.events.at(-1).dialogue=chat.lines;
+    memory(w,a,b,'road-talk',.24,`路上碰见 ${b.name}，我们聊起了${chat.topic}。`,source,45);
+    memory(w,b,a,'road-talk',.24,`路上碰见 ${a.name}，我们聊起了${chat.topic}。`,source,45);
     return true;
   }
   function schedule(w,p) {
