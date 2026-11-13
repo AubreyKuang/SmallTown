@@ -134,6 +134,8 @@ const TownConversations=(()=>{
     return null;
   }
   function create(w,a,b){
+    const opportunity=TownCrossroads.clue(w,a,b);
+    if(opportunity)return opportunity;
     const choice=Math.min(a.id,b.id)*7+Math.max(a.id,b.id)*11+w.tick;
     if(TownSchool.student(a)&&TownSchool.student(b)){
       const [topic,...lines]=student[choice%student.length];

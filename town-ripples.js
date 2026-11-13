@@ -3,7 +3,7 @@
 // Butterfly effects. Every follow-up grows from an earlier event and needs a real encounter:
 // residents only pass things on when their own schedules bring them to the same place.
 const TownRipples=(()=>{
-  const PLAYER=new Set(['delay','lost','coin','bus','lottery','visit','wish-roll','date-die','moment-choice','moment-plan','story-invite','twilight-invite','supply-intervene']);
+  const PLAYER=new Set(['delay','lost','coin','bus','lottery','visit','wish-roll','date-die','moment-choice','moment-plan','story-invite','twilight-invite','supply-intervene','crossroads-choice']);
   const TONE={help:1,thanks:1,treat:1,share:1,bond:1,crush:1,couple:1,reunion:1,umbrella:1,repay:1,snowman:1,meteor:1,
     stargaze:1,platform:1,flowers:1,'kind-turn':1,'moment-result':1,'wish-result':1,'story-done':1,'sky-thanks':1,coin:1,bus:1,lottery:1,
     gossip:-1,rumor:-1,conflict:-1,jealous:-1,unpaid:-1,late:-1,lost:-1,delay:-1,'stood-up':-1,'confess-no':-1};

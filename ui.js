@@ -10,6 +10,7 @@ let world=SaveManager.load(localStorage,KEY,Town.valid,Town.migrate);
 const isNew=!world;
 if(isNew){
   world=Town.create();
+  TownCrossroads.start(world);
   while(world.tick<17)Town.step(world);
 }
 Town.upgrade(world);
@@ -260,7 +261,8 @@ function renderBuild(){
     const type=TownBuild.types[buildingType];
     const choices=storyNode('div','','build-choices');
     for(const [plot,site] of TownBuild.plots.entries()){
-      const button=storyButton(`${plot+1} · ${site.name}`,()=>placeBuilding(plot));
+      const button=storyButton('',()=>placeBuilding(plot));
+      button.append(storyNode('strong',`${plot+1} · ${site.name}`),storyNode('small',TownCrossroads.modes[plot].label));
       button.disabled=!TownBuild.canPlace(world,plot,buildingType);
       choices.append(button);
     }
@@ -407,6 +409,67 @@ function renderTwilight(){
     nodes.push(storyNode('h3','收藏的灯笺'),list);
   }
   panel.replaceChildren(...nodes);
+}
+function crossroadsOptions(entry){
+  const actions=storyNode('div','','crossroads-options');
+  for(const [index,option] of TownCrossroads.choices(entry).entries()){
+    if(!TownCrossroads.available(world,entry,option))continue;
+    const button=storyButton('',()=>{
+      if(!Town.chooseCrossroads(world,entry.key,index))return;
+      if($('conversation').open)$('conversation').close();
+      selectSideTab($('side-town'));
+      save();render();
+      $('crossroads-'+entry.key)?.focus({preventScroll:true});
+    });
+    button.disabled=world.tokens===0;
+    button.append(storyNode('strong',option.label),storyNode('small',entry.story?option.hint:when(option.at)+' · '+option.hint));
+    actions.append(button);
+  }
+  return actions;
+}
+function renderCrossroads(){
+  const panel=$('crossroads'),entries=TownCrossroads.list(world),cards=[];
+  const opportunity=entries.find(entry=>entry.phase==='open'&&world.tick<=entry.deadline);
+  const notice=$('crossroadsNotice');
+  notice.hidden=!opportunity;
+  if(opportunity){
+    notice.replaceChildren(storyNode('strong',opportunity.title),storyNode('small',when(opportunity.deadline)+' 前可干预'));
+    notice.onclick=()=>{
+      selectSideTab($('side-town'));
+      $('crossroads-'+opportunity.key)?.focus();
+    };
+  }
+  if(world.crossroadsStart==null){
+    cards.push(storyButton('开启微光镇的三段故事',()=>{
+      TownCrossroads.start(world);
+      save();render();
+    }));
+  }
+  const active=entries.filter(entry=>entry.phase!=='done');
+  const recent=entries.filter(entry=>entry.phase==='done').sort((a,b)=>b.parent-a.parent).slice(0,3);
+  for(const entry of [...active,...recent]){
+    const card=storyNode('article','','crossroads-card');
+    const heading=storyNode('h3',entry.title);
+    heading.id='crossroads-'+entry.key;heading.tabIndex=-1;
+    card.append(heading);
+    if(entry.phase==='open'){
+      card.append(storyNode('p',entry.clue));
+      const options=crossroadsOptions(entry);
+      if(options.childElementCount)card.append(storyNode('p',when(entry.deadline)+' 前可干预 · 消耗 1 次','story-meta'),options);
+      else card.append(storyNode('p','居民正在按自己的安排走。','story-meta'));
+    }else{
+      if(entry.result)card.append(storyNode('p',entry.result));
+      const meeting=TownCrossroads.appointment(entry);
+      if(meeting)card.append(storyNode('p',when(meeting.at)+' · '+Town.places[meeting.place].name,'story-meta'),
+        storyButton('到碰面前半小时',()=>observeAt(meeting.at-1)));
+    }
+    const people=storyNode('div','','story-actions');
+    for(const id of entry.ids)people.append(storyButton(world.people.find(p=>p.id===id).name,()=>showResidentProfile(id)));
+    card.append(people);
+    cards.push(card);
+  }
+  if(!cards.length)cards.push(storyNode('p','新的安排会在居民日程或聊天中出现。','story-meta'));
+  panel.replaceChildren(storyNode('h2','居民的安排'),...cards);
 }
 function renderRail(){
   const {active,next,phase}=TownRail.schedule(world.tick),button=$('openRail');
@@ -793,6 +856,7 @@ function render(){
   $('redirect').setAttribute('aria-expanded',String(choosingPlace));
   $('destinations').hidden=!choosingPlace;
   renderRail();
+  renderCrossroads();
   renderTwilight();
   renderSupply();
   renderBuild();
@@ -971,7 +1035,10 @@ function openConversation(chat,people){
     button.append(portrait,storyNode('span',`${p.name} 的档案`));
     profiles.append(button);
   }
+  const entry=TownCrossroads.active(world).find(item=>item.key===chat.opportunity&&item.phase==='open');
+  const options=entry&&crossroadsOptions(entry);
   $('conversationPanel').replaceChildren(list,profiles);
+  if(options?.childElementCount)$('conversationPanel').append(storyNode('p',when(entry.deadline)+' 前可干预 · 消耗 1 次','story-meta'),options);
   $('conversation').showModal();
   scheduleNext();
   refreshMotion();

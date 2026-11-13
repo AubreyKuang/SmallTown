@@ -22,6 +22,13 @@ const TownTravel=(()=>{
     log(`${p.name} 买了去${places[trip.job][0]}的车票。`,'travel-book',[p.id]);
     return true;
   }
+  function deferMorning(w,p){
+    const trip=tripFor(w,p);
+    if(!trip||trip.returned||w.tick>=trip.depart||trip.depart%48!==evening)return false;
+    trip.depart=dayStart(trip.depart)+48+morning+1;
+    trip.back=dayStart(trip.depart)+96+morning;
+    return true;
+  }
   function schedule(w,p){
     const trip=tripFor(w,p);
     if(!trip||w.tick<trip.depart-5)return null;
@@ -50,8 +57,8 @@ const TownTravel=(()=>{
     return w.people.every(p=>away(p)===Boolean(trips?.[p.id]&&w.tick>=trips[p.id].depart&&w.tick<trips[p.id].back))&&
       (trips==null||typeof trips==='object'&&!Array.isArray(trips)&&Object.entries(trips).every(([id,t])=>
       w.people.some(p=>String(p.id)===id&&p.job===t?.job)&&Object.hasOwn(places,t.job)&&
-      Number.isSafeInteger(t.depart)&&t.depart>=evening&&t.depart%48===evening&&t.depart<=w.tick+53&&
+      Number.isSafeInteger(t.depart)&&t.depart>=evening&&[evening,morning+1].includes(t.depart%48)&&t.depart<=w.tick+53&&
       t.back===dayStart(t.depart)+96+morning&&t.returned===(w.tick>=t.back)));
   }
-  return {tripFor,away,possible,book,schedule,step,valid,destination:trip=>places[trip.job][0],keepsake:trip=>places[trip.job][1]};
+  return {tripFor,away,possible,book,deferMorning,schedule,step,valid,destination:trip=>places[trip.job][0],keepsake:trip=>places[trip.job][1]};
 })();

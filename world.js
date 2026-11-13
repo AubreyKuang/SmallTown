@@ -31,6 +31,7 @@ const Town = (() => {
     w.events.push(event);
     if(w.events.length>300){
       const required=new Set(w.pending.map(p=>p.parent));
+      for(const entry of TownCrossroads.active(w)){required.add(entry.root);if(entry.parent)required.add(entry.parent);}
       if(w.townStory)required.add(w.townStory.root);
       if(w.moment)required.add(w.moment.root);
       for(const wish of Object.values(w.wishes??{}))if(wish.plan)required.add(wish.plan.root);
@@ -71,7 +72,9 @@ const Town = (() => {
     return true;
   }
   function schedule(w,p) {
+    const crossing=TownCrossroads.destination(w,p);
     const travel=TownTravel.schedule(w,p);
+    if(crossing&&(!travel||travel.activity==='trainWait'&&(crossing.place==='station'||w.tick<TownTravel.tripFor(w,p).depart-3)))return crossing;
     if(travel)return travel;
     const h=w.tick%48/2;
     if(p.override?.until>w.tick)return {place:p.override.place,activity:p.override.place==='station'&&p.override.bus?'commute':'visit'};
@@ -87,7 +90,7 @@ const Town = (() => {
     if(school)return TownWishes.destination(w,p,school);
     if(w.power&&(p.id%5===0||p.id%7===0)&&h>=19+(p.id%3)*.5&&h<21+(p.id%2)*.5)return {place:'square',activity:'stars'};
     const routine=TownSkeptic.destination(w,p,TownRipples.destination(w,p,TownRelations.destination(w,p,TownWishes.destination(w,p,TownRoutines.daily(w,p)))));
-    return TownSupply.assignment(w,p,TownTwilight.destination(w,p,routine));
+    return TownSupply.assignment(w,p,TownTwilight.destination(w,p,TownCrossroads.neighborhood(w,p,routine)));
   }
   function activity(w,p){
     if(Object.hasOwn(TownRoutines.labels,p.activity))return p.activity;
@@ -210,6 +213,7 @@ const Town = (() => {
       w.people.push(resident);
       return resident;
     });
+    TownCrossroads.prepare(w,(...args)=>log(w,...args));
     TownRelations.prepare(w);
     for(const p of w.people){
       Object.assign(p,schedule(w,p));
@@ -235,6 +239,7 @@ const Town = (() => {
     });
     TownSkeptic.step(w,(...args)=>log(w,...args),(...args)=>memory(w,...args));
     TownRipples.step(w,(...args)=>log(w,...args));
+    TownCrossroads.settle(w,(...args)=>log(w,...args),(...args)=>memory(w,...args));
     TownGoals.check(w);
     TownPaper.track(w);
     const railNotice=TownRail.notice(w.tick);
@@ -249,7 +254,7 @@ const Town = (() => {
     &&w.people.every(p=>p.job!=='away'&&p.habit!=='away'&&Object.hasOwn(places,p.job)&&Object.hasOwn(places,p.habit)&&p.trust&&typeof p.trust==='object')
     &&Array.isArray(w.pending)&&w.pending.every(p=>['late','help','meeting','loan'].includes(p.kind)&&w.people.some(person=>person.id===p.person))
     &&Number.isInteger(w.sequence)&&Number.isInteger(w.tokens)&&w.tokens>=0&&w.tokens<=5&&TownStories.valid(w)&&TownMoments.valid(w)&&TownWishes.valid(w)&&TownRelations.valid(w)
-    &&TownRipples.valid(w)&&TownSkeptic.valid(w)&&TownGoals.valid(w)&&TownPaper.valid(w)&&TownWatch.valid(w)&&TownVisitors.valid(w)&&TownTwilight.valid(w)&&TownSupply.valid(w)&&TownTravel.valid(w);
+    &&TownRipples.valid(w)&&TownSkeptic.valid(w)&&TownGoals.valid(w)&&TownPaper.valid(w)&&TownWatch.valid(w)&&TownVisitors.valid(w)&&TownTwilight.valid(w)&&TownSupply.valid(w)&&TownTravel.valid(w)&&TownCrossroads.valid(w);
   // Older saves carry no ripple, skeptic, goal or paper state. Those modules start fresh from the current tick.
   function migrate(data,from){
     if(!data||typeof data!=='object')return data;
@@ -271,5 +276,6 @@ const Town = (() => {
   const assistSupply=(w,id)=>TownSupply.assist(w,id,(...args)=>log(w,...args));
   const placeBuilding=(w,plot,type)=>TownBuild.place(w,plot,type,(...args)=>log(w,...args));
   const bookTrip=(w,p)=>TownTravel.book(w,p,(message,type,ids)=>log(w,message,null,type,ids));
-  return {bookTrip,placeBuilding,assistSupply,create,step,influence,places,valid,migrate,startStory,inviteStory,forecast,forecastPlan,activity,canAct,dailyTotal,upgrade,chooseMoment,roadTalk,rollWish,nudgeDate,inviteTwilight};
+  const chooseCrossroads=(w,key,index)=>TownCrossroads.choose(w,key,index,(...args)=>log(w,...args));
+  return {chooseCrossroads,bookTrip,placeBuilding,assistSupply,create,step,influence,places,valid,migrate,startStory,inviteStory,forecast,forecastPlan,activity,canAct,dailyTotal,upgrade,chooseMoment,roadTalk,rollWish,nudgeDate,inviteTwilight};
 })();

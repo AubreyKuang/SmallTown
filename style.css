@@ -176,3 +176,10 @@ dialog{width:min(760px,calc(100% - 24px));max-height:88vh;border:1px solid var(-
 .resident-profile .wish-thought{padding:7px 8px;font-size:13px}
 .resident-profile .profile-relations{grid-template-columns:minmax(0,1fr)}
 .resident-profile button{max-width:100%;font-size:12px}
+
+#crossroads,.crossroads-card,.crossroads-options{display:grid;gap:7px}
+#crossroads>h2,.crossroads-card>h3{font-size:14px}
+.crossroads-card{border:1px solid #ded2b5;border-radius:10px;background:#fbf6e8;padding:9px;font-size:13px}
+.crossroads-card button,.crossroads-options button{font-size:12px}
+.crossroads-options button,.build-choices button{text-align:left}
+.crossroads-options small,.build-choices small{display:block;margin-top:3px;color:var(--muted)}

@@ -2,8 +2,8 @@ const assert = require('node:assert/strict');
 const {test} = require('node:test');
 const {readFileSync} = require('node:fs');
 const vm = require('node:vm');
-const source=['npc-memory.js','save-manager.js','town-school.js','town-stories.js','town-routines.js','town-moments.js','town-visitors.js','town-rail.js','town-wishes.js','town-relations.js','town-ripples.js','town-skeptic.js','town-goals.js','town-watch.js','town-twilight.js','town-supply.js','town-paper.js','town-build.js','town-travel.js','town-conversations.js','world.js','town-homes.js','town-interiors.js','town-atmosphere.js','town-characters.js','town-map.js','town-movement.js'].map(name=>readFileSync(require('node:path').join(__dirname,'..',name),'utf8')).join('\n');
-const {Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes,TownRelations,TownRipples,TownSkeptic,TownGoals,TownPaper,TownWatch,TownVisitors,TownTwilight,TownAtmosphere,TownSupply,TownBuild,TownTravel,TownConversations,TownCharacters}=vm.runInNewContext(source+'\n({Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes,TownRelations,TownRipples,TownSkeptic,TownGoals,TownPaper,TownWatch,TownVisitors,TownTwilight,TownAtmosphere,TownSupply,TownBuild,TownTravel,TownConversations,TownCharacters})');
+const source=['npc-memory.js','save-manager.js','town-school.js','town-stories.js','town-routines.js','town-moments.js','town-visitors.js','town-rail.js','town-wishes.js','town-relations.js','town-ripples.js','town-skeptic.js','town-goals.js','town-watch.js','town-twilight.js','town-supply.js','town-paper.js','town-build.js','town-travel.js','town-crossroads.js','town-conversations.js','world.js','town-homes.js','town-interiors.js','town-atmosphere.js','town-characters.js','town-map.js','town-movement.js'].map(name=>readFileSync(require('node:path').join(__dirname,'..',name),'utf8')).join('\n');
+const {Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes,TownRelations,TownRipples,TownSkeptic,TownGoals,TownPaper,TownWatch,TownVisitors,TownTwilight,TownAtmosphere,TownSupply,TownBuild,TownTravel,TownCrossroads,TownConversations,TownCharacters}=vm.runInNewContext(source+'\n({Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes,TownRelations,TownRipples,TownSkeptic,TownGoals,TownPaper,TownWatch,TownVisitors,TownTwilight,TownAtmosphere,TownSupply,TownBuild,TownTravel,TownCrossroads,TownConversations,TownCharacters})');
 function to(w,t){while(w.tick<t)Town.step(w);}
 function visualRandom(seed){
   return ()=>{
@@ -897,9 +897,9 @@ test('new arrivals introduce themselves and other residents hear who moved where
   assert.equal(chat.source,event.id);
   assert.match(chat.lines[0].text,/Ina.*东街口/);
   const introduction=TownConversations.create(w,newcomer,a);
-  assert.equal(introduction.source,event.id);
-  assert.equal(introduction.lines[1].speaker,newcomer.id);
-  assert.match(introduction.lines[1].text,/新家的钥匙/);
+  assert.equal(introduction.opportunity,'home-4');
+  assert.equal(introduction.lines[0].speaker,newcomer.id);
+  assert.match(introduction.lines[0].text,/东街口/);
   assert.ok(Town.roadTalk(w,a.id,b.id,chat));
   assert.notEqual(TownConversations.create(w,a,w.people[2]).source,event.id);
 });
@@ -959,4 +959,65 @@ test('resident designs stay distinct across saves, and named travelers have stab
   assert.equal(TownCharacters.appearance(105).gear,'glasses');
   assert.equal(TownCharacters.appearance(106).gear,'beret');
   assert.strictEqual(TownCharacters.appearance(124),TownCharacters.appearance(148));
+});
+
+test('story choices change the destination, train ticket and memories across a saved game',()=>{
+  for(const [index,place,at] of [[0,'bakery',33],[1,'bakery',39],[2,'station',36]]){
+    const w=Town.create(8);
+    TownCrossroads.start(w);to(w,17);
+    const [alice,bob]=w.people;
+    assert.equal(TownConversations.create(w,bob,alice).opportunity,'0');
+    assert.equal(TownConversations.create(w,bob,alice).lines[0].speaker,alice.id);
+    assert.ok(Town.chooseCrossroads(w,'0',index));
+    assert.equal(w.tokens,2);
+    assert.equal(Town.chooseCrossroads(w,'0',index),false);
+    assert.equal(TownTravel.tripFor(w,alice).depart,index===1?67:38);
+    const saved=JSON.parse(JSON.stringify(w));
+    assert.ok(Town.valid(saved));
+    to(saved,at);
+    assert.equal(saved.people[0].place,place);
+    assert.equal(saved.people[1].place,place);
+    assert.equal(saved.crossroads[0].phase,'done');
+    assert.ok(NPCMemory.recall(saved,alice.id).some(m=>m.type==='crossroads'));
+    to(saved,48);
+    assert.ok(saved.papers.at(-1).sections.some(section=>section.label==='临时改变的安排'));
+  }
+});
+
+test('skipping the deadline yields a later meeting, and both subsequent stories can resolve',()=>{
+  const w=Town.create(8);
+  TownCrossroads.start(w);to(w,40);
+  assert.equal(w.crossroads[0].phase,'later');
+  assert.equal(Town.chooseCrossroads(w,'0',0),false);
+  to(w,136);
+  assert.equal(w.crossroads[0].phase,'done');
+  assert.match(w.crossroads[0].result,/重新约/);
+  assert.equal(w.crossroads[1].phase,'later');
+  to(w,171);
+  assert.equal(w.crossroads[1].phase,'done');
+  to(w,209);
+  assert.ok(Town.chooseCrossroads(w,'2',1));
+  to(w,231);
+  assert.equal(w.crossroads[2].phase,'done');
+  assert.equal(w.people[6].place,'market');
+  assert.ok(Town.valid(w));
+});
+
+test('home plots create distinct errands, clues and recurring neighbors',()=>{
+  for(const [plot,place,contact] of [[1,'bakery',1],[4,'station',3]]){
+    const w=Town.create(8);to(w,17);
+    assert.ok(Town.placeBuilding(w,plot,'cottage'));
+    to(w,66);
+    const resident=w.people.find(p=>p.homePlot===plot),neighbor=w.people.find(p=>p.id===contact);
+    const key='home-'+plot;
+    assert.equal(TownConversations.create(w,resident,neighbor).opportunity,key);
+    assert.ok(Town.chooseCrossroads(w,key,0));
+    const at=TownCrossroads.modes[plot].tick;
+    to(w,48+at);
+    assert.equal(resident.place,place);
+    assert.ok(NPCMemory.recall(w,resident.id).some(m=>m.type==='crossroads'&&m.subject===String(contact)));
+    to(w,432);
+    assert.ok(NPCMemory.recall(w,resident.id).some(m=>m.type==='neighborhood'&&m.subject===String(contact)),plot);
+    assert.ok(Town.valid(w));
+  }
 });
