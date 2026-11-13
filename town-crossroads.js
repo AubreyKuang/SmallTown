@@ -142,7 +142,9 @@ const TownCrossroads=(()=>{
     const source=log(text,entry.parent??entry.root,'crossroads-result',entry.ids);
     remember(a,b,'crossroads',emotion,text,source,74);
     remember(b,a,'crossroads',emotion,text,source,74);
-    Object.assign(w.crossroads[entry.key],{phase:'done',result:text,parent:source});
+    const state=w.crossroads[entry.key];
+    Object.assign(state,{phase:'done',result:text,parent:source});
+    if(entry.story&&emotion>0)Object.assign(state,{mementoAt:w.tick,mementoRoute:entry.phase});
   }
   function settle(w,log,remember){
     for(const entry of active(w)){
@@ -193,6 +195,16 @@ const TownCrossroads=(()=>{
     return {topic:entry.title,source:entry.root,opportunity:entry.key,
       lines:lines.map((text,i)=>({speaker:(i?listener:speaker).id,text}))};
   }
+  function ending(w,key){
+    const state=w.crossroads?.[key],story=stories[key];
+    if(!story||state?.phase!=='done')return null;
+    if(state.mementoAt!=null)return {tick:state.mementoAt,route:state.mementoRoute};
+    // Older saves already hold the exact completed branch text and scheduled date.
+    if(state.result===story.later)return {tick:state.base+story.laterAt,route:'later'};
+    const choice=story.choices[state.choice];
+    if(choice&&state.result===choice.result)return {tick:state.base+choice.at,route:'planned'};
+    return null;
+  }
   function valid(w){
     if(w.crossroadsStart!=null&&(!Number.isInteger(w.crossroadsStart)||w.crossroadsStart<0||w.crossroadsStart>w.tick+192||w.crossroadsStart%48))return false;
     if(w.crossroads==null)return true;
@@ -203,10 +215,13 @@ const TownCrossroads=(()=>{
         entry.ids.length!==2||entry.ids[0]===entry.ids[1]||entry.ids.some(id=>!person(w,id))||
         typeof entry.title!=='string'||typeof entry.clue!=='string'||!['open','planned','later','done'].includes(entry.phase))return false;
       const item=view(key,entry);
+      const hasMemento=entry.mementoAt!=null||entry.mementoRoute!=null;
+      if(hasMemento&&(!item.story||entry.phase!=='done'||!Number.isSafeInteger(entry.mementoAt)||entry.mementoAt<entry.open||
+        entry.mementoAt>w.tick||(entry.mementoRoute!=='later'&&(entry.mementoRoute!=='planned'||!Number.isInteger(entry.choice)||!choices(item)[entry.choice]))))return false;
       return (!item.area||w.people.some(p=>p.id===entry.ids[0]&&p.homePlot===Number(key.slice(5))))&&
         (entry.phase!=='planned'||Number.isInteger(entry.choice)&&!!choices(item)[entry.choice])&&
         (entry.phase!=='later'||!!item.story);
     });
   }
-  return {start,active,list,choices,available,appointment,prepare,choose,destination,neighborhood,settle,clue,valid,modes};
+  return {start,active,list,choices,available,appointment,prepare,choose,destination,neighborhood,settle,clue,ending,valid,modes};
 })();

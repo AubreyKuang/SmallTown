@@ -2,8 +2,8 @@ const assert = require('node:assert/strict');
 const {test} = require('node:test');
 const {readFileSync} = require('node:fs');
 const vm = require('node:vm');
-const source=['npc-memory.js','save-manager.js','town-school.js','town-stories.js','town-routines.js','town-moments.js','town-visitors.js','town-rail.js','town-festivals.js','town-wishes.js','town-relations.js','town-ripples.js','town-skeptic.js','town-goals.js','town-watch.js','town-twilight.js','town-supply.js','town-paper.js','town-build.js','town-travel.js','town-crossroads.js','town-conversations.js','world.js','town-homes.js','town-interiors.js','town-atmosphere.js','town-characters.js','town-map.js','town-movement.js'].map(name=>readFileSync(require('node:path').join(__dirname,'..',name),'utf8')).join('\n');
-const {Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownFestivals,TownWishes,TownRelations,TownRipples,TownSkeptic,TownGoals,TownPaper,TownWatch,TownVisitors,TownTwilight,TownAtmosphere,TownSupply,TownBuild,TownTravel,TownCrossroads,TownConversations,TownCharacters}=vm.runInNewContext(source+'\n({Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownFestivals,TownWishes,TownRelations,TownRipples,TownSkeptic,TownGoals,TownPaper,TownWatch,TownVisitors,TownTwilight,TownAtmosphere,TownSupply,TownBuild,TownTravel,TownCrossroads,TownConversations,TownCharacters})');
+const source=['npc-memory.js','save-manager.js','town-school.js','town-stories.js','town-routines.js','town-moments.js','town-visitors.js','town-rail.js','town-festivals.js','town-wishes.js','town-relations.js','town-ripples.js','town-skeptic.js','town-goals.js','town-watch.js','town-twilight.js','town-supply.js','town-paper.js','town-build.js','town-travel.js','town-crossroads.js','town-conversations.js','world.js','town-homes.js','town-interiors.js','town-atmosphere.js','town-characters.js','town-mementos.js','town-map.js','town-movement.js'].map(name=>readFileSync(require('node:path').join(__dirname,'..',name),'utf8')).join('\n');
+const {Town,SaveManager,NPCMemory,TownMap,TownMementos,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownFestivals,TownWishes,TownRelations,TownRipples,TownSkeptic,TownGoals,TownPaper,TownWatch,TownVisitors,TownTwilight,TownAtmosphere,TownSupply,TownBuild,TownTravel,TownCrossroads,TownConversations,TownCharacters}=vm.runInNewContext(source+'\n({Town,SaveManager,NPCMemory,TownMap,TownMementos,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownFestivals,TownWishes,TownRelations,TownRipples,TownSkeptic,TownGoals,TownPaper,TownWatch,TownVisitors,TownTwilight,TownAtmosphere,TownSupply,TownBuild,TownTravel,TownCrossroads,TownConversations,TownCharacters})');
 function to(w,t){while(w.tick<t)Town.step(w);}
 function visualRandom(seed){
   return ()=>{
@@ -1088,4 +1088,31 @@ test('Pip learns from a real concert attendee and shares the tune on a later vis
   assert.ok(resumed.papers.at(-1).sections.some(s=>s.text.includes('把这一句拉进了原来的旋律')));
   to(resumed,19*48);
   assert.equal(resumed.events.filter(e=>e.type==='festival-reprise').length,1);
+});
+
+test('crossroads branches leave different physical traces and persist through a reload',()=>{
+  const w=Town.create(8);
+  TownCrossroads.start(w);to(w,17);
+  const station=JSON.parse(JSON.stringify(w));
+  assert.ok(Town.chooseCrossroads(station,'0',2));
+  assert.ok(Town.chooseCrossroads(w,'0',1));
+  to(w,39);to(station,39);
+  assert.equal(TownMementos.list(w)[0].place,'bakery');
+  assert.equal(TownMementos.list(station)[0].place,'station');
+  const saved=JSON.parse(JSON.stringify(station));
+  assert.ok(Town.valid(saved));
+  assert.equal(TownMementos.list(saved)[0].title,'站台边的面包纸袋');
+  delete saved.crossroads[0].mementoAt;
+  delete saved.crossroads[0].mementoRoute;
+  assert.ok(Town.valid(saved));
+  assert.equal(TownMementos.list(saved)[0].title,'站台边的面包纸袋');
+});
+
+test('unassisted stories leave traces after repair and not after the first missed meeting',()=>{
+  const w=Town.create(8);
+  TownCrossroads.start(w);to(w,40);
+  assert.equal(TownMementos.list(w).length,0);
+  to(w,136);
+  assert.equal(TownMementos.list(w)[0].title,'摊开的手写食谱');
+  assert.ok(Town.valid(w));
 });

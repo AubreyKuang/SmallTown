@@ -1,7 +1,7 @@
 'use strict';
 const $=id=>document.getElementById(id);
 const KEY='god-dice-v1';
-const dialogs=['journal','stories','moment','rail','paper','fate','thread','twilight','supply','build','conversation','festival'];
+const dialogs=['journal','stories','moment','rail','paper','fate','thread','twilight','supply','build','conversation','festival','mementos'];
 const conversationButtons=new Map();
 const music=TownMusic.create();
 const canvas=$('map'),ctx=canvas.getContext('2d');
@@ -39,12 +39,13 @@ function save(){
   return ok;
 }
 let pulses=[],pulseSeq=world.sequence,fateTab='quests',paperIndex=0,threadRoot=null,toastTimer=null;
-let autoPaper=localStorage.getItem(KEY+':paper')!=='off';
+let autoPaper=localStorage.getItem(KEY+':paper')==='on';
 let skippedPaperDay=null;
 let visiblePins=mapPins;
 let buildingType=null;
 const camera=TownCamera.create();
 const cameraInput=TownCamera.bind(canvas,camera,updateCamera);
+const scenePoints={bakery:[430,213],school:[720,105],station:[820,468],square:[551,357],market:[770,246]};
 const selected=()=>world.people.find(p=>p.id===Number($('person').value))||world.people[0];
 
 function option(select,value,label){
@@ -210,6 +211,8 @@ canvas.addEventListener('click',event=>{
   const guest=TownRail.passengers(world.tick,tickProgress).find(pin=>
     pin.visitor&&Math.min(Math.hypot(x-pin.x,y-pin.y+4),Math.hypot(x-pin.x,y-pin.y+26))<Math.min(24,closest.distance));
   if(guest){if(guest.visitor.id==='luye')openFestival();else openRail(guest.visitor.id);return;}
+  const item=TownMementos.list(world).find(item=>Math.hypot(x-item.x,y-item.y+5)<Math.min(13,closest.distance));
+  if(item){openMementos(item.id);return;}
   if(closest.pin){
     chooseResident(closest.pin.resident.id);
     $('sideFate').closest('.controls-panel').scrollTop=0;
@@ -228,12 +231,13 @@ function storyButton(label,action,css){
   button.onclick=action;
   return button;
 }
-function observeAt(at){
+function observeAt(at,place){
   setRunning(false);
   const previousPaper=world.papers?.at(-1);
   advanceTo(at);
   const latestPaper=world.papers?.at(-1);
   if(latestPaper&&latestPaper!==previousPaper)skippedPaperDay=latestPaper.day;
+  if(scenePoints[place])camera.centerAt(...scenePoints[place],1.65);
   save();render();
   canvas.focus({preventScroll:true});
   canvas.scrollIntoView({block:'nearest'});
@@ -459,9 +463,11 @@ function renderCrossroads(){
       else card.append(storyNode('p','居民正在按自己的安排走。','story-meta'));
     }else{
       if(entry.result)card.append(storyNode('p',entry.result));
+      const item=TownMementos.list(world).find(item=>String(item.id)===entry.key);
+      if(item)card.append(storyButton('看看留下的东西',()=>openMementos(item.id)));
       const meeting=TownCrossroads.appointment(entry);
       if(meeting)card.append(storyNode('p',when(meeting.at)+' · '+Town.places[meeting.place].name,'story-meta'),
-        storyButton('到碰面前半小时',()=>observeAt(meeting.at-1)));
+        storyButton('到碰面前半小时',()=>observeAt(meeting.at-1,meeting.place)));
     }
     const people=storyNode('div','','story-actions');
     for(const id of entry.ids)people.append(storyButton(world.people.find(p=>p.id===id).name,()=>showResidentProfile(id)));
@@ -470,6 +476,33 @@ function renderCrossroads(){
   }
   if(!cards.length)cards.push(storyNode('p','新的安排会在居民日程或聊天中出现。','story-meta'));
   panel.replaceChildren(storyNode('h2','居民的安排'),...cards);
+}
+function renderMementos(){
+  const button=$('openMementos');
+  const items=TownMementos.list(world);
+  button.hidden=items.length===0;
+  if(items.length)button.replaceChildren(storyNode('strong','镇上留下的东西'),storyNode('small',items[0].title+' · '+items[0].name));
+}
+function openMementos(id){
+  const cards=TownMementos.list(world).map(item=>{
+    const card=storyNode('article','','resident-section');
+    const heading=storyNode('h3',item.title);
+    heading.id='memento-'+item.id;
+    heading.tabIndex=-1;
+    card.append(heading,storyNode('p',item.name+' · '+when(item.tick),'story-meta'),storyNode('p',item.text),
+      storyButton('在地图上看',()=>{
+        $('mementos').close();
+        camera.centerAt(item.x,item.y,2.15);
+        updateCamera();
+        canvas.focus({preventScroll:true});
+        canvas.scrollIntoView({block:'nearest'});
+      }));
+    return card;
+  });
+  $('mementosPanel').replaceChildren(...cards);
+  $('mementos').showModal();
+  ($('memento-'+id)??$('mementosTitle')).focus();
+  scheduleNext();refreshMotion();
 }
 function renderFestival(){
   const upcoming=TownFestivals.upcoming(world.tick);
@@ -486,11 +519,11 @@ function renderFestival(){
     if(event.guest&&world.tick<event.arrival){
       card.append(storyNode('p',when(event.arrival)+' · 鹿野在微光镇站下车','story-meta'));
       actions.append(storyButton('到站前等鹿野',()=>{
-        $('festival').close();observeAt(event.arrival-1);setRunning(true);
+        $('festival').close();observeAt(event.arrival-1,'station');setRunning(true);
       }));
     }
     if(world.tick<event.at-1)actions.append(storyButton('到活动开始前',()=>{
-      $('festival').close();observeAt(event.at-1);setRunning(true);
+      $('festival').close();observeAt(event.at-1,'square');setRunning(true);
     }));
     if(actions.childElementCount)card.append(actions);
     return card;
@@ -894,6 +927,7 @@ function render(){
   renderRail();
   renderCrossroads();
   renderFestival();
+  renderMementos();
   renderTwilight();
   renderSupply();
   renderBuild();
@@ -1052,6 +1086,8 @@ $('zoomReset').onclick=()=>{camera.reset();updateCamera();};
 $('openRail').onclick=()=>openRail();
 $('mapFestival').onclick=$('openFestival').onclick=openFestival;
 $('closeFestival').onclick=()=>$('festival').close();
+$('openMementos').onclick=()=>openMementos();
+$('closeMementos').onclick=()=>$('mementos').close();
 $('closeRail').onclick=()=>$('rail').close();
 $('openTwilight').onclick=()=>{$('twilight').showModal();renderTwilight();scheduleNext();refreshMotion();};
 $('closeTwilight').onclick=()=>$('twilight').close();
@@ -1385,4 +1421,4 @@ document.addEventListener('visibilitychange',()=>{music.setHidden(document.hidde
 motion.addEventListener('change',()=>{paint();refreshMotion();});
 window.addEventListener('pagehide',save);
 save();render();
-setRunning(true);
+setRunning(!isNew);

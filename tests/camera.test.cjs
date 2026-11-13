@@ -46,3 +46,12 @@ test('a two-pointer pinch scales the map and suppresses the synthetic click',()=
   listeners.get('click')({detail:1,stopImmediatePropagation(){suppressed=true;}});
   assert.equal(suppressed,true);
 });
+
+test('scene shortcuts center the camera and clamp near map boundaries',()=>{
+  const camera=TownCamera.create();
+  camera.centerAt(550,357,2);
+  const center=camera.screen(550,357);
+  assert.deepEqual([center.x,center.y],[480,310]);
+  camera.centerAt(0,620,2);
+  assert.deepEqual([camera.x,camera.y],[0,-620]);
+});

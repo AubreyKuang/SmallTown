@@ -18,9 +18,10 @@ const TownCamera=(()=>{
       y=target.y-point.y*scale;
       constrain();
     }
+    function centerAt(wx,wy,next=scale){scale=clamp(next,min,max);x=width/2-wx*scale;y=height/2-wy*scale;constrain();}
     function pan(dx,dy){x+=dx;y+=dy;constrain();}
     return {get scale(){return scale;},get x(){return x;},get y(){return y;},
-      world,screen,zoom,pan,reset(){scale=min;x=0;y=0;}};
+      world,screen,zoom,pan,centerAt,reset(){scale=min;x=0;y=0;}};
   }
 
   function bind(canvas,camera,changed){

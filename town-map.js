@@ -309,6 +309,7 @@ const TownMap = (() => {
     const night=light.night>.44;
     ctx.drawImage(background(night&&!world.power,interiors),0,0,960,620);
     TownArt.keepsakes(ctx,world.keepsakes??[],night,{polygon,ellipse,line},interiors);
+    for(const item of TownMementos.list(world))TownMementos.draw(ctx,item,night,characterBrushes);
     TownBuildArt.draw(ctx,world,interiors,night&&!world.power,{polygon,ellipse,line});
     TownAtmosphere.scenery(ctx,world,time,light,river,interiors,{ellipse,line});
     festivalScenery(ctx,world,time);
