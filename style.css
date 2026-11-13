@@ -11,7 +11,7 @@ p,h1,h2,h3,ol,ul{margin:0}h1,h2,h3{line-height:1.2}
 .title{color:inherit;text-decoration:none}.title h1{font:700 clamp(21px,3.5vw,32px)/1.05 "Songti SC","Noto Serif CJK SC",Georgia,serif;letter-spacing:.09em}.title p{font-size:11px;letter-spacing:.14em;color:#e4c993;margin-top:3px}.emblem{display:grid;place-items:center;width:42px;height:42px;border-radius:12px;background:#f2d79c;color:#364e3e;font-size:29px}
 .clock{color:#ffedca;font-weight:650}.clock span{color:#f6cf76;font-size:22px}.top-actions button,.time-controls button{border-color:#fbf0ce55;background:#2a4236ed;color:#fff3d9}.top-actions button:hover,.time-controls button:hover{background:#4c654d!important}.top-actions button[aria-pressed=true]{color:var(--gold)}#unread{display:inline-block;width:7px;height:7px;margin-left:3px;background:var(--gold);border-radius:50%}
 .playfield{overflow:hidden;border:1px solid #f7e3ad71;border-radius:19px;background:var(--paper);box-shadow:0 18px 40px #14281f70}
-.map-frame{position:relative;background:#a8bc78}.map-frame>canvas{display:block;width:100%;height:auto;cursor:pointer;touch-action:manipulation}
+.map-frame{position:relative;background:#a8bc78}.map-frame>canvas{display:block;width:100%;height:auto;cursor:pointer;touch-action:none;aspect-ratio:960/620}
 .map-top{position:absolute;top:12px;left:12px;right:12px;justify-content:space-between;pointer-events:none}.map-hint,.map-story{background:#283f34ed;color:#fff4d6;border:1px solid #f9e9ba77;border-radius:10px}.map-hint{padding:7px 10px;font-size:12px}.time-controls{gap:6px;padding:8px 12px;background:#e8dfc4}.time-controls button{min-width:40px;padding:4px 8px;font-size:14px}.time-controls button[aria-pressed=true]{color:var(--gold)}
 .map-story{width:100%;display:flex;align-items:center;gap:8px;text-align:left;border-radius:0;padding:7px 16px;min-height:34px;font-size:13px}.map-story:hover:not(:disabled){background:#3b5745}.map-story>span:first-child{color:var(--gold);white-space:nowrap;font-weight:700}.map-story>span:last-child{margin-left:auto}
 .school-entry{position:absolute;top:15.6%;left:67.3%;transform:translateX(-50%);min-height:28px;padding:2px 7px;background:#f1dcaa;border-color:#aa8b60;font-size:12px;box-shadow:0 2px 0 #76573e66}
@@ -106,8 +106,13 @@ dialog{width:min(760px,calc(100% - 24px));max-height:88vh;border:1px solid var(-
   .cards button,.time-controls button{min-height:42px}
 }
 
-.trade-zoom{position:absolute;right:10px;bottom:10px;min-height:32px;padding:4px 8px;border-color:#ede3b97c;background:#2d483ce8;color:#fff3d6;font-size:12px}
-.trade-zoom:hover:not(:disabled){background:#44624d}
+.map-frame>canvas.can-pan{cursor:grab}
+.map-frame>canvas.is-panning{cursor:grabbing}
+.map-frame>canvas:focus-visible{outline:2px solid #f3d28f;outline-offset:-3px}
+.map-camera{position:absolute;right:10px;bottom:10px;display:flex;gap:2px;padding:3px;border:1px solid #e6d5a58c;border-radius:9px;background:#233d32ed;box-shadow:0 2px 8px #172c2550}
+.map-camera button{min-width:37px;min-height:36px;padding:2px 7px;border:0;border-radius:6px;background:transparent;color:#fff1ca;font-variant-numeric:tabular-nums}
+.map-camera button:hover:not(:disabled){background:#4f6450}
+#zoomReset{min-width:57px;font-size:12px}
 .supply-entry{display:grid;gap:2px;width:100%;border:0;border-radius:0;border-bottom:1px solid #c9b997;background:#e6ebd5;padding:8px 12px;text-align:left;color:#3b543c}
 .supply-entry small{font-size:12px;color:#4d6147}
 .supply-entry[data-stage=short]{background:#f1dfca}
@@ -115,4 +120,4 @@ dialog{width:min(760px,calc(100% - 24px));max-height:88vh;border:1px solid var(-
 .supply-chain li{padding:5px 9px;border-radius:6px;background:#ece4cf;font-size:13px}
 .supply-chain [aria-current=step]{background:#dce9cc;color:#344c36;font-weight:700}
 @media(min-width:900px) and (min-height:500px){.controls-panel>.supply-entry{order:-2}}
-@media(max-width:530px){.trade-zoom{right:6px;bottom:6px;min-height:35px}}
+@media(max-width:530px){.map-camera{right:6px;bottom:6px}.map-camera button{min-width:41px;min-height:40px}}

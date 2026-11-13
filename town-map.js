@@ -25,37 +25,67 @@ const TownMap = (() => {
   }
   function tree(ctx,x,y,scale,variation){
     ctx.save();ctx.translate(x,y);ctx.scale(scale,scale);
-    ellipse(ctx,4,2,20,8,'#405a3830');
-    line(ctx,[[0,0],[0,-20]],'#725938',5);
-    const leaves=['#60864e','#5d8a68','#83a75a','#ad9a52'][variation%4];
-    ellipse(ctx,0,-27,18,20,'#486b48');
-    ellipse(ctx,-8,-32,12,15,leaves);ellipse(ctx,7,-35,13,16,leaves);
-    ellipse(ctx,-7,-41,8,5,'#d5df8b55');
+    ellipse(ctx,11,4,25,8,'#344a3254');
+    line(ctx,[[0,1],[-1,-20],[-7,-29]],'#5e5137',5);
+    line(ctx,[[-2,-1],[-3,-20]],'#998159',1.2);
+    const palettes=[['#355a3b','#57804a','#86a759'],['#345d49','#548567','#84a876'],
+      ['#49663b','#6e9248','#9cb65f'],['#655f36','#8f8948','#b4ad61']];
+    const [dark,mid,light]=palettes[variation%4];
+    for(const [dx,dy,rx,ry] of [[0,-22,17,15],[-11,-30,12,13],[9,-31,14,15],[-1,-42,13,14]]){
+      ellipse(ctx,dx+1,dy+2,rx,ry,dark);
+      ellipse(ctx,dx-2,dy-2,rx-2,ry-3,mid);
+      ellipse(ctx,dx-5,dy-6,rx*.55,ry*.39,light);
+    }
+    for(let i=0;i<10;i++){
+      const dx=-14+(i*17+variation)%26,dy=-47+(i*11+variation)%27;
+      ellipse(ctx,dx,dy,1.9+(i%2),1.1,i%3===0?dark:light);
+    }
     ctx.restore();
+  }
+  function paving(ctx,points,width){
+    line(ctx,points,'#687452',width+6);
+    line(ctx,points,'#c0ad85',width+2);
+    line(ctx,points,'#d5c19b',width-4);
+    const colors=['#e0cca6','#d1ba94','#c5b08d','#e6d2ab','#bda889'];
+    const outer=width>=20?1:0;
+    for(let i=1;i<points.length;i++){
+      const [ax,ay]=points[i-1],[bx,by]=points[i],length=Math.hypot(bx-ax,by-ay);
+      ctx.save();ctx.translate(ax,ay);ctx.rotate(Math.atan2(by-ay,bx-ax));
+      for(let row=-outer;row<=outer;row++){
+        for(let j=0;j<Math.floor(length/8)-1;j++){
+          const x=2+j*8+((row+1)%2)*3,y=row*6-2;
+          ctx.beginPath();ctx.roundRect(x,y,6+(j%2),4.6+(j%3)*.25,1.4);
+          ctx.fillStyle=colors[(j*7+row+6+i)%colors.length];ctx.fill();
+          ctx.fillStyle='#f6e3b858';ctx.fillRect(x+1,y+.35,4,1);
+        }
+      }
+      ctx.restore();
+    }
   }
   function terrain(ctx,lit,interiors){
     const grass=ctx.createLinearGradient(0,0,960,620);
-    grass.addColorStop(0,'#91aa67');grass.addColorStop(.5,'#bcc987');grass.addColorStop(1,'#9eb781');
+    grass.addColorStop(0,'#829d58');grass.addColorStop(.5,'#aabb73');grass.addColorStop(1,'#829f67');
     ctx.fillStyle=grass;ctx.fillRect(0,0,960,620);
     for(let i=0;i<46;i++){
-      ellipse(ctx,(i*211)%991,(i*137)%643,48+(i%4)*17,19+(i%3)*7,i%2?'#9ab57938':'#d9d9a255');
+      ellipse(ctx,(i*211)%991,(i*137)%643,48+(i%4)*17,19+(i%3)*7,i%2?'#779b5434':'#cbd88e57');
     }
-    line(ctx,river,'#e2d6a2',72);line(ctx,river,'#6ba6a6',57);line(ctx,river,'#86bbba',36);
+    line(ctx,river,'#627e59',77);line(ctx,river,'#c9bd8c',70);
+    line(ctx,river,'#5c9590',57);line(ctx,river,'#4d888d',45);line(ctx,river,'#6da6a6',25);
     for(let i=0;i<37;i++){
       const a=river[i%8],b=river[i%8+1],f=((i*31)%97)/100;
       const x=a[0]+(b[0]-a[0])*f,y=a[1]+(b[1]-a[1])*f+(i%5-2)*7;
       line(ctx,[[x-5,y],[x+9,y]],'#d1e5d180',1.7);
     }
     const road=[[62,318],[244,315],[359,275],[541,267],[704,279],[879,302]];
-    line(ctx,road,'#839269',39);line(ctx,road,'#e4cba0',32);line(ctx,road,'#eddbad',23);
-    line(ctx,[[554,267],[550,352],[628,427],[676,495]],'#ead6aa',25);
+    paving(ctx,[[554,267],[550,352],[628,427],[676,495]],24);
     line(ctx,[[244,315],[211,391],[228,416]],'#dfc49b',20);
-    line(ctx,[[424,270],[427,220]],'#e3cba0',17);
-    line(ctx,[[769,287],[769,223]],'#e3cba0',17);
-    line(ctx,[[588,247],[588,271]],'#e3cba0',17);
+    paving(ctx,[[424,270],[427,220]],14);
+    paving(ctx,[[769,287],[769,223]],14);
+    paving(ctx,[[588,247],[588,271]],14);
     line(ctx,[[704,279],[683,242],[682,146],[708,112],[725,94]],'#e3cba0',13);
     line(ctx,[[708,112],[781,107],[827,111]],'#e3cba0',10);
-    line(ctx,[[628,427],[716,464],[780,479]],'#ead6aa',19);
+    paving(ctx,[[628,427],[716,464],[780,479]],21);
+    paving(ctx,road,31);
     const railNodes=[309,388,625];
     line(ctx,railNodes.map(y=>[TownRail.trackX(y),y]),'#777568',20);
     line(ctx,[[901,518],[901,609]],'#7e6654',24);
@@ -78,7 +108,14 @@ const TownMap = (() => {
     TownArt.buildings(ctx,lit,{polygon,ellipse,line},interiors);
     if(interiors)TownInteriors.draw(ctx,lit,{ellipse,line});
     TownArt.school(ctx,lit,{polygon,ellipse,line},interiors);
-    ellipse(ctx,549,357,79,51,'#c3ab81');ellipse(ctx,547,352,74,47,'#eed4a6');
+    ellipse(ctx,549,357,79,51,'#978868');ellipse(ctx,547,352,76,49,'#c6b18b');
+    ctx.save();ctx.beginPath();ctx.ellipse(547,352,72,45,0,0,Math.PI*2);ctx.clip();
+    for(let row=0;row<14;row++)for(let col=0;col<19;col++){
+      const x=472+col*8+(row%2)*4,y=307+row*6.5;
+      ctx.beginPath();ctx.roundRect(x,y,7,5.5,1);
+      ctx.fillStyle=['#dec8a0','#cfb994','#d8bf96','#e4cda7'][(row+col*7)%4];ctx.fill();
+    }
+    ctx.restore();
     ellipse(ctx,547,342,25,15,'#aa936c');ellipse(ctx,547,339,21,11,'#76aaa6');
     ellipse(ctx,545,337,7,4,'#c0ded1');
     for(const [x,y] of TownAtmosphere.lamps){
@@ -210,8 +247,10 @@ const TownMap = (() => {
     const key=`${lit}:${interiors}`;
     if(!backgrounds.has(key)){
       const canvas=document.createElement('canvas');
-      canvas.width=960;canvas.height=620;
-      terrain(canvas.getContext('2d'),lit,interiors);
+      canvas.width=1920;canvas.height=1240;
+      const detail=canvas.getContext('2d');
+      detail.scale(2,2);
+      terrain(detail,lit,interiors);
       backgrounds.set(key,canvas);
     }
     return backgrounds.get(key);
@@ -242,7 +281,7 @@ const TownMap = (() => {
     const labelScale=Math.min(1.8,Math.max(1,640/displayWidth));
     const light=TownAtmosphere.light(world.tick,progress);
     const night=light.night>.44;
-    ctx.drawImage(background(night&&!world.power,interiors),0,0);
+    ctx.drawImage(background(night&&!world.power,interiors),0,0,960,620);
     TownArt.keepsakes(ctx,world.keepsakes??[],night,{polygon,ellipse,line},interiors);
     TownAtmosphere.scenery(ctx,world,time,light,river,interiors,{ellipse,line});
     rollingStock(ctx,TownRail.train(world.tick,progress));
@@ -273,6 +312,7 @@ const TownMap = (() => {
     }
     TownAtmosphere.particles(ctx,world,time,light,{ellipse,line});
     for(const [id,{x,labelY}] of Object.entries(locations)){
+      if(!choosingPlace&&displayWidth>1250&&['homes','forest','schoolyard'].includes(id))continue;
       const text=Town.places[id].name;
       ctx.font=`600 ${15*labelScale}px system-ui, sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';
       const w=ctx.measureText(text).width+16;

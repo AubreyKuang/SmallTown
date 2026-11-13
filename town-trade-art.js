@@ -18,7 +18,9 @@ const TownTradeArt=(()=>{
     }
     function building(x,y,w,h,face,side,roof,shade,tile){
       poly([[x-5,y+5],[x+w,y+5],[x+w+33,y-12],[x+21,y-13]],'#475a3e57');
-      box(x,y-h,w,h,face);
+      const wall=ctx.createLinearGradient(x,y-h,x,y);
+      wall.addColorStop(0,face);wall.addColorStop(.12,shade);wall.addColorStop(.29,face);wall.addColorStop(1,face);
+      box(x,y-h,w,h,wall);
       poly([[x+w,y-h],[x+w+24,y-h-17],[x+w+24,y-17],[x+w,y]],side);
       box(x,y-5,w,5,'#96765a');
       poly([[x+w,y-5],[x+w+24,y-22],[x+w+24,y-17],[x+w,y]],'#795d49');
@@ -32,6 +34,11 @@ const TownTradeArt=(()=>{
         stroke([[left,yy],[right,yy]],tile,.75);
         for(let xx=left+6+(row%2)*4;xx<right-4;xx+=9)stroke([[xx+1,yy-3],[xx,yy]],'#613e3b66',.7);
         stroke([[right,yy],[right+22,yy-17]],tile,.7);
+      }
+      stroke([[x+w,y-h+4],[x+w,y],[x+w+24,y-17],[x+w+24,y-h-15]],'#65513f',1.1);
+      for(let j=1;j<7;j++){
+        const yy=y-h+4+j*5;
+        stroke([[x+w+1,yy],[x+w+23,yy-15]],'#d3b6855f',.8);
       }
       stroke([[x-6,y-h+2],[x+w+4,y-h+2],[x+w+28,y-h-16]],'#654a3a',2.3);
     }

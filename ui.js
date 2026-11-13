@@ -37,9 +37,9 @@ function save(){
 let pulses=[],pulseSeq=world.sequence,fateTab='quests',paperIndex=0,threadRoot=null,toastTimer=null;
 let autoPaper=localStorage.getItem(KEY+':paper')!=='off';
 let skippedPaperDay=null;
-let tradeZoom=false;
 let visiblePins=mapPins;
-const mapCamera=()=>tradeZoom?{scale:1.65,x:-505,y:-82}:{scale:1,x:0,y:0};
+const camera=TownCamera.create();
+const cameraInput=TownCamera.bind(canvas,camera,updateCamera);
 const selected=()=>world.people.find(p=>p.id===Number($('person').value))||world.people[0];
 
 function option(select,value,label){
@@ -95,9 +95,15 @@ function paint(){
   const p=selected(),activity=residentActivity(p);
   const bio=`${activity} · 心情 ${p.mood} · ${p.money} 元${p.questioned?' · 察觉异常':''}`;
   if($('bio').textContent!==bio)$('bio').textContent=bio;
-  const camera=mapCamera();
+  const pixelRatio=Math.min(2,window.devicePixelRatio||1);
+  const backingWidth=Math.max(TownCamera.width,Math.min(2400,Math.round(canvas.clientWidth*pixelRatio)));
+  const backingHeight=Math.round(backingWidth*TownCamera.height/TownCamera.width);
+  if(canvas.width!==backingWidth||canvas.height!==backingHeight){
+    canvas.width=backingWidth;canvas.height=backingHeight;
+  }
+  const sx=canvas.width/TownCamera.width,sy=canvas.height/TownCamera.height;
   ctx.save();
-  ctx.setTransform(camera.scale,0,0,camera.scale,camera.x,camera.y);
+  ctx.setTransform(sx*camera.scale,0,0,sy*camera.scale,sx*camera.x,sy*camera.y);
   TownMap.draw(ctx,world,p.id,canvas.clientWidth*camera.scale,visiblePins,choosingPlace,interiors,animationTime,progress,cargo);
   drawPulses();
   ctx.restore();
@@ -131,11 +137,26 @@ function animate(now){
   refreshMotion();
   if(frame===null)lastFrame=null;
 }
+function positionMapLinks(){
+  for(const [id,x,y] of [['openSchool',646,97],['openRail',822,363]]){
+    const point=camera.screen(x,y),button=$(id);
+    button.hidden=choosingPlace||point.x<58||point.x>TownCamera.width-58||point.y<14||point.y>TownCamera.height-62;
+    button.style.left=`${point.x/TownCamera.width*100}%`;
+    button.style.top=`${point.y/TownCamera.height*100}%`;
+  }
+}
+function updateCamera(){
+  $('zoomReset').textContent=`${Math.round(camera.scale*100)}%`;
+  $('zoomOut').disabled=camera.scale<=TownCamera.min;
+  $('zoomIn').disabled=camera.scale>=TownCamera.max;
+  canvas.classList.toggle('can-pan',camera.scale>TownCamera.min);
+  positionMapLinks();
+  paint();
+}
 canvas.addEventListener('click',event=>{
   const bounds=canvas.getBoundingClientRect();
-  const camera=mapCamera();
-  const x=((event.clientX-bounds.left)*canvas.width/bounds.width-camera.x)/camera.scale;
-  const y=((event.clientY-bounds.top)*canvas.height/bounds.height-camera.y)/camera.scale;
+  const point=cameraInput.point(event);
+  const {x,y}=camera.world(point.x,point.y);
   if(choosingPlace){
     const place=TownMap.findPlace(x,y);
     if(place)intervene('visit',place);
@@ -145,7 +166,7 @@ canvas.addEventListener('click',event=>{
     if(pin.indoors&&!interiors)return best;
     const distance=Math.hypot(x-pin.x,y-pin.y+4);
     return distance<best.distance?{pin,distance}:best;
-  },{pin:null,distance:Math.max(30,canvas.width/bounds.width*19)/camera.scale});
+  },{pin:null,distance:Math.max(30,TownCamera.width/bounds.width*19)/camera.scale});
   const guest=TownRail.passengers(world.tick,motion.matches?.62:tickProgress).find(pin=>
     pin.visitor&&Math.min(Math.hypot(x-pin.x,y-pin.y+4),Math.hypot(x-pin.x,y-pin.y+26))<Math.min(24,closest.distance));
   if(guest){openRail(guest.visitor.id);return;}
@@ -291,7 +312,6 @@ function renderTwilight(){
 function renderRail(){
   const {active,next,phase}=TownRail.schedule(world.tick),button=$('openRail');
   const status={approach:'正在进站',platform:'正在上下车',departure:'正在发车'};
-  button.hidden=choosingPlace||tradeZoom;
   button.dataset.active=String(Boolean(active));
   button.textContent=active?status[phase]:'列车 ›';
   if(!$('rail').open)return;
@@ -649,17 +669,12 @@ function render(){
   $('redirect').disabled=world.tokens<=0;
   $('redirect').setAttribute('aria-expanded',String(choosingPlace));
   $('destinations').hidden=!choosingPlace;
-  if(choosingPlace)tradeZoom=false;
-  $('tradeZoom').hidden=choosingPlace;
-  $('tradeZoom').setAttribute('aria-pressed',String(tradeZoom));
-  $('tradeZoom').textContent=tradeZoom?'回到全镇':'放大商街';
-  $('openSchool').hidden=choosingPlace||tradeZoom;
   renderRail();
   renderTwilight();
   renderSupply();
   if($('moment').open)renderMoment();
   if($('wish').open)renderWish();
-  $('mapHint').textContent=choosingPlace?`给 ${p.name} 点一个目的地`:tradeZoom?'点面包坊查看今日生产':'点击居民打开档案';
+  $('mapHint').textContent=choosingPlace?`给 ${p.name} 点一个目的地`:'点击居民查看档案';
   const moment=TownMoments.active(world);
   const latest=world.events.findLast(e=>e.type!=='town');
   $('mapStory').hidden=choosingPlace||(!latest&&!moment);
@@ -675,7 +690,7 @@ function render(){
   renderFollow();
   renderWatch();
   renderExtras();
-  paint();
+  updateCamera();
 }
 function advance(){
   Town.step(world);
@@ -759,7 +774,9 @@ function openRail(visitor){
 }
 $('openSupply').onclick=openSupply;
 $('closeSupply').onclick=()=>$('supply').close();
-$('tradeZoom').onclick=()=>{tradeZoom=!tradeZoom;render();};
+$('zoomOut').onclick=()=>cameraInput.zoomBy(1/1.2);
+$('zoomIn').onclick=()=>cameraInput.zoomBy(1.2);
+$('zoomReset').onclick=()=>{camera.reset();updateCamera();};
 $('openRail').onclick=()=>openRail();
 $('closeRail').onclick=()=>$('rail').close();
 $('openTwilight').onclick=()=>{$('twilight').showModal();renderTwilight();scheduleNext();refreshMotion();};
