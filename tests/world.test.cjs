@@ -2,8 +2,8 @@ const assert = require('node:assert/strict');
 const {test} = require('node:test');
 const {readFileSync} = require('node:fs');
 const vm = require('node:vm');
-const source=['npc-memory.js','save-manager.js','town-school.js','town-stories.js','town-routines.js','town-moments.js','town-visitors.js','town-rail.js','town-wishes.js','town-relations.js','town-ripples.js','town-skeptic.js','town-goals.js','town-watch.js','town-twilight.js','town-paper.js','world.js','town-homes.js','town-interiors.js','town-atmosphere.js','town-map.js','town-movement.js'].map(name=>readFileSync(require('node:path').join(__dirname,'..',name),'utf8')).join('\n');
-const {Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes,TownRelations,TownRipples,TownSkeptic,TownGoals,TownPaper,TownWatch,TownVisitors,TownTwilight,TownAtmosphere}=vm.runInNewContext(source+'\n({Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes,TownRelations,TownRipples,TownSkeptic,TownGoals,TownPaper,TownWatch,TownVisitors,TownTwilight,TownAtmosphere})');
+const source=['npc-memory.js','save-manager.js','town-school.js','town-stories.js','town-routines.js','town-moments.js','town-visitors.js','town-rail.js','town-wishes.js','town-relations.js','town-ripples.js','town-skeptic.js','town-goals.js','town-watch.js','town-twilight.js','town-supply.js','town-paper.js','world.js','town-homes.js','town-interiors.js','town-atmosphere.js','town-map.js','town-movement.js'].map(name=>readFileSync(require('node:path').join(__dirname,'..',name),'utf8')).join('\n');
+const {Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes,TownRelations,TownRipples,TownSkeptic,TownGoals,TownPaper,TownWatch,TownVisitors,TownTwilight,TownAtmosphere,TownSupply}=vm.runInNewContext(source+'\n({Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes,TownRelations,TownRipples,TownSkeptic,TownGoals,TownPaper,TownWatch,TownVisitors,TownTwilight,TownAtmosphere,TownSupply})');
 function to(w,t){while(w.tick<t)Town.step(w);}
 function visualRandom(seed){
   return ()=>{
@@ -649,4 +649,52 @@ test('save manager migrates version 1 saves, rejects future versions and rewinds
   const list=SaveManager.snapshots(storage,'town');
   assert.equal(JSON.stringify(list.map(s=>s.day)),'[1,2]');
   assert.equal(SaveManager.restore(storage,'town',0,Town.valid,Town.migrate).tick,48);
+});
+
+test('the bread chain moves visible freight, sells at market, and resumes from a save',()=>{
+  const w=Town.create(8);to(w,18);
+  assert.equal(TownSupply.stage(w),'inbound');
+  assert.equal(TownSupply.cargo(w,0).kind,'flour');
+  assert.notDeepEqual(TownSupply.cargo(w,0),TownSupply.cargo(w,.7));
+  const loaded=JSON.parse(JSON.stringify(w));
+  assert.ok(Town.valid(loaded));
+  to(w,36);to(loaded,36);
+  assert.equal(JSON.stringify(w),JSON.stringify(loaded));
+  assert.equal(w.supply.run.sold,8);
+  assert.equal(w.supply.coins,16);
+  assert.equal(TownSupply.stage(w),'served');
+});
+
+test('rain can cause a shortfall, while help or a shorter route can fill the order',()=>{
+  const start=()=>{
+    const w=Town.create(8);w.weather='细雨';to(w,18);
+    return w;
+  };
+  const rainy=start();to(rainy,36);
+  assert.equal(TownSupply.stage(rainy),'short');
+  const helped=start();
+  to(helped,19);
+  const helper=TownSupply.helper(helped);
+  assert.ok(helper);
+  const before=TownSupply.cargo(helped,0);
+  const root=Town.assistSupply(helped,helper.id);
+  assert.ok(root);
+  assert.deepEqual(TownSupply.cargo(helped,0),before);
+  assert.equal(Town.assistSupply(helped,helper.id),false);
+  assert.equal(helped.tokens,2);
+  to(helped,36);
+  assert.equal(TownSupply.stage(helped),'served');
+  assert.ok(helped.events.some(e=>e.type==='supply-help'&&e.parent===root));
+  assert.ok(helped.people.some(p=>NPCMemory.recall(helped,p.id).some(m=>m.type==='supply-help')));
+  assert.ok(TownSupply.build(helped));
+  assert.equal(TownSupply.build(helped),false);
+  assert.equal(helped.supply.depot,'square');
+  const resumed=JSON.parse(JSON.stringify(helped));
+  to(resumed,48);resumed.weather='细雨';to(resumed,66);
+  assert.equal(resumed.supply.depot,'station');
+  assert.equal(resumed.supply.nextDepot,null);
+  assert.equal(resumed.supply.run.leg.to-resumed.supply.run.leg.from,6);
+  to(resumed,84);
+  assert.equal(TownSupply.stage(resumed),'served');
+  assert.ok(resumed.papers[0].sections.some(s=>s.label==='面包坊与商街'));
 });

@@ -105,3 +105,14 @@ dialog{width:min(760px,calc(100% - 24px));max-height:88vh;border:1px solid var(-
   .cards{grid-template-columns:repeat(3,minmax(0,1fr))}
   .cards button,.time-controls button{min-height:42px}
 }
+
+.trade-zoom{position:absolute;right:10px;bottom:10px;min-height:32px;padding:4px 8px;border-color:#ede3b97c;background:#2d483ce8;color:#fff3d6;font-size:12px}
+.trade-zoom:hover:not(:disabled){background:#44624d}
+.supply-entry{display:grid;gap:2px;width:100%;border:0;border-radius:0;border-bottom:1px solid #c9b997;background:#e6ebd5;padding:8px 12px;text-align:left;color:#3b543c}
+.supply-entry small{font-size:12px;color:#4d6147}
+.supply-entry[data-stage=short]{background:#f1dfca}
+.supply-chain{display:flex;flex-wrap:wrap;gap:7px;padding:0;list-style:none}
+.supply-chain li{padding:5px 9px;border-radius:6px;background:#ece4cf;font-size:13px}
+.supply-chain [aria-current=step]{background:#dce9cc;color:#344c36;font-weight:700}
+@media(min-width:900px) and (min-height:500px){.controls-panel>.supply-entry{order:-2}}
+@media(max-width:530px){.trade-zoom{right:6px;bottom:6px;min-height:35px}}

@@ -73,18 +73,7 @@ const TownArt=(()=>{
 
     }
 
-    // Bakery: brick oven chimney, curved shop window and striped canopy.
-    oval(428,221,60,11,'#3d503442');rect(378,163,97,51,'#d5a680');
-    poly([[475,164],[488,151],[488,202],[475,214]],'#9a755d');
-    rect(460,128,13,31,'#9e6856');rect(457,124,18,5,'#d99c73');
-    roof([[366,166],[389,143],[472,143],[489,153],[476,168]],'#995640','#d38660');
-    for(let y=150;y<165;y+=4)stroke([[388,y],[479,y]],'#e2a27572');
-    for(let y=173;y<213;y+=6)stroke([[380,y],[474,y]],'#eed0a780');
-    window(390,185,24,18);window(445,185,20,18);door(422,187,14,27,'#805747');
-    poly([[384,181],[465,181],[474,190],[381,190]],'#f5e0ad');
-    for(let x=386;x<464;x+=13)poly([[x,181],[x+6,181],[x+9,190],[x+1,190]],'#ab674b');
-    sign('BAKERY',424,174,'#804f41');planter(467,211);
-    oval(388,215,8,4,'#a2754f');oval(387,213,4,1.5,'#eec278');
+    TownTradeArt.buildings(ctx,lit,{polygon,ellipse,line});
 
     // Café: a glazed corner room and a little terrace.
     oval(573,207,64,12,'#3d503442');rect(516,147,103,50,'#cfb67d');
@@ -100,22 +89,6 @@ const TownArt=(()=>{
     poly([[632,208],[645,187],[654,208]],'#f2cc88');
     stroke([[625,209],[664,209]],'#a77555',2);
     oval(629,223,5,3,'#ad865a');oval(660,224,5,3,'#ad865a');
-
-    // Market: a timber hall and two separate open stalls.
-    oval(762,221,63,14,'#3d503442');rect(721,164,85,52,'#d8b990');
-    poly([[806,164],[823,153],[823,204],[806,216]],'#b78b65');
-    roof([[708,165],[759,126],[822,155],[808,167]],'#b77c42','#e4ae66');
-    for(let y=143;y<=162;y+=5)stroke([[758-(y-130)*1.18,y],[760+(y-130)*1.8,y]],'#f1bf7280');
-    for(const x of [725,748,774,798])stroke([[x,170],[x,214]],'#6e533e',4);
-    rect(752,186,19,30,'#665d48');window(731,179,10,12);window(781,178,12,13);
-    sign('MARKET',761,173,'#715738');
-    for(const [x,y,color] of [[829,217,'#bd7964'],[871,228,'#6a9379']]){
-      stroke([[x-14,y-10],[x-14,y+15]],'#725743',2);stroke([[x+14,y-10],[x+14,y+15]],'#725743',2);
-      poly([[x-20,y],[x-12,y-16],[x+14,y-16],[x+20,y]],color);
-      for(let i=-1;i<=1;i++)poly([[x+i*10-2,y],[x+i*7-2,y-16],[x+i*7+2,y-16],[x+i*10+2,y]],'#f2d7a4');
-      rect(x-15,y+9,30,6,'#9e7850');
-      for(let i=0;i<5;i++)oval(x-10+i*5,y+8,3,2,i%2?'#d8a058':'#8daa62');
-    }
 
     // Station: a long platform, tiled wings and a central clock tower.
     oval(818,455,69,12,'#3d503442');rect(758,445,125,12,'#d8be8e');

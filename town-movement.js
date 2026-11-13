@@ -6,7 +6,7 @@ const TownMovement = (() => {
     const groups=new Set();
     let nextSocial=.4;
     const distance=(x,y,[tx,ty])=>Math.hypot(x-tx,y-ty);
-    const privateActivities=new Set(['sleep','class','teach','prepare','indoorRecess']);
+    const privateActivities=new Set(['sleep','class','teach','prepare','indoorRecess','breadCart','breadBake']);
 
     const publicStops=(place,activity)=>TownInteriors.uses(place,activity)?TownInteriors.stops(place):TownMap.stops[place];
     function twilightSeat(resident,place,activity){
@@ -75,7 +75,7 @@ const TownMovement = (() => {
     }
     function meet(){
       if(groups.size>=4)return;
-      const candidates=walkers.filter(w=>!w.group&&w.cooldown<=0&&!privateActivities.has(w.activity)&&!atHome(w));
+      const candidates=walkers.filter(w=>!w.group&&w.cooldown<=0&&!privateActivities.has(w.activity)&&!privateActivities.has(Town.activity(world,w.resident))&&!atHome(w));
       const startIndex=Math.floor(random()*candidates.length);
       const available=candidates.slice(startIndex).concat(candidates.slice(0,startIndex));
       for(let i=0;i<available.length;i++){

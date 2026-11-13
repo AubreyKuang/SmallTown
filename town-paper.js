@@ -12,7 +12,7 @@ const TownPaper=(()=>{
   };
   const PRIORITY=Object.keys(HEADLINES);
   const SOCIAL=new Set(['chat','road-talk','platform','reunion','umbrella','school-recess','school-family','stargaze','treat','thanks','share']);
-  const KIND_NAMES={coin:'捡硬币',lottery:'中彩票',bus:'赶公交',lost:'丢钥匙',delay:'错过班车',visit:'改道','wish-roll':'心愿掷骰','date-die':'约会掷骰','twilight-invite':'捎出灯笺'};
+  const KIND_NAMES={coin:'捡硬币',lottery:'中彩票',bus:'赶公交',lost:'丢钥匙',delay:'错过班车',visit:'改道','wish-roll':'心愿掷骰','date-die':'约会掷骰','twilight-invite':'捎出灯笺','supply-intervene':'帮忙运面粉'};
   const day=tick=>Math.floor(tick/48);
   const person=(w,id)=>w.people.find(p=>p.id===id);
   const placeName=place=>Town.places[place]?.name??'家';
@@ -109,6 +109,8 @@ const TownPaper=(()=>{
     const relation=relationLine(w,s,events);if(relation)sections.push({label:'关系变化',text:relation});
     const twilight=events.find(e=>e.type==='twilight-meet');
     if(twilight)sections.push({label:'河畔灯笺',text:twilight.text});
+    const supply=events.find(e=>e.type==='supply-close');
+    if(supply)sections.push({label:'面包坊与商街',text:supply.text});
     const followed=TownWatch.daily(w,events);
     if(followed.length)sections.push({label:'关注的人 · 后来',text:followed.join('\n')});
     const notes=(w.skeptic?.notes??[]).filter(n=>n.day===d);

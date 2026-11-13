@@ -8,7 +8,7 @@ const TownRoutines=(()=>{
     stars:'在广场看星星',project:'准备镇务',visit:'临时改道',wish:'为自己的事留了时间',
     date:'赴约',dateOvertime:'还在收摊，惦记着约会',dateRepair:'和恋人见面，把话说清楚',
     meet:'赴一个约定',meteor:'在广场看流星',experiment:'在广场守着一枚硬币',lecture:'在广场听 Newton 演讲',speech:'在广场演讲',
-    twilight:'坐在灯笺旁'
+    twilight:'坐在灯笺旁',breadCart:'在推车送货',breadBake:'在烤今天的面包'
   };
   const at=(place,activity)=>({place,activity});
   const hourTick=tick=>tick%48;

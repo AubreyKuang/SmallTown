@@ -238,7 +238,7 @@ const TownMap = (() => {
       ctx.restore();
     }
   }
-  function draw(ctx,world,selection,displayWidth,pins,choosingPlace,interiors,time=0,progress=0){
+  function draw(ctx,world,selection,displayWidth,pins,choosingPlace,interiors,time=0,progress=0,cargo=null){
     const labelScale=Math.min(1.8,Math.max(1,640/displayWidth));
     const light=TownAtmosphere.light(world.tick,progress);
     const night=light.night>.44;
@@ -246,6 +246,7 @@ const TownMap = (() => {
     TownArt.keepsakes(ctx,world.keepsakes??[],night,{polygon,ellipse,line},interiors);
     TownAtmosphere.scenery(ctx,world,time,light,river,interiors,{ellipse,line});
     rollingStock(ctx,TownRail.train(world.tick,progress));
+    TownTradeArt.trade(ctx,world,cargo,time,{polygon,ellipse,line},interiors);
     for(const traveler of TownRail.passengers(world.tick,progress)){
       const {id,x,y,phase,visitor}=traveler;
       const walking=['alight','walk','board'].includes(phase);

@@ -37,6 +37,9 @@ function save(){
 let pulses=[],pulseSeq=world.sequence,fateTab='quests',paperIndex=0,threadRoot=null,toastTimer=null;
 let autoPaper=localStorage.getItem(KEY+':paper')!=='off';
 let skippedPaperDay=null;
+let tradeZoom=false;
+let visiblePins=mapPins;
+const mapCamera=()=>tradeZoom?{scale:1.65,x:-505,y:-82}:{scale:1,x:0,y:0};
 const selected=()=>world.people.find(p=>p.id===Number($('person').value))||world.people[0];
 
 function option(select,value,label){
@@ -72,7 +75,8 @@ function beep(){
 }
 
 function residentActivity(p){
-  const pin=mapPins.find(walker=>walker.resident.id===p.id);
+  const pin=visiblePins.find(walker=>walker.resident.id===p.id);
+  if(pin?.activity==='breadCart'&&TownSupply.current(world)?.leg?.person===p.id)return '在推车送货';
   const place=p.place==='homes'?'家':Town.places[p.place].name;
   const label=TownRoutines.labels[Town.activity(world,p)];
   const companion=pin?.partner&&world.people.find(other=>other.id===pin.partner);
@@ -83,11 +87,20 @@ function personalThought(p){
   return TownRelations.thought(world,p)??TownSkeptic.thought(world,p)??TownRipples.thought(world,p)??TownWishes.thought(world,p,Town.activity(world,p));
 }
 function paint(){
+  const progress=motion.matches?.62:tickProgress;
+  const cargo=TownSupply.cargo(world,progress);
+  visiblePins=cargo?mapPins.map(pin=>pin.resident.id===cargo.person?
+    {...pin,x:cargo.x,y:cargo.y,indoors:false,activity:'breadCart',social:null,partner:null,movingTo:null,
+      step:Math.sin(animationTime/120)*1.4}:pin).sort((a,b)=>a.y-b.y):mapPins;
   const p=selected(),activity=residentActivity(p);
   const bio=`${activity} · 心情 ${p.mood} · ${p.money} 元${p.questioned?' · 察觉异常':''}`;
   if($('bio').textContent!==bio)$('bio').textContent=bio;
-  TownMap.draw(ctx,world,p.id,canvas.clientWidth,mapPins,choosingPlace,interiors,animationTime,motion.matches?.62:tickProgress);
+  const camera=mapCamera();
+  ctx.save();
+  ctx.setTransform(camera.scale,0,0,camera.scale,camera.x,camera.y);
+  TownMap.draw(ctx,world,p.id,canvas.clientWidth*camera.scale,visiblePins,choosingPlace,interiors,animationTime,progress,cargo);
   drawPulses();
+  ctx.restore();
 }
 function createCrowd(){
   return TownMovement.create(world,Math.random,(a,b)=>{
@@ -120,18 +133,19 @@ function animate(now){
 }
 canvas.addEventListener('click',event=>{
   const bounds=canvas.getBoundingClientRect();
-  const x=(event.clientX-bounds.left)*canvas.width/bounds.width;
-  const y=(event.clientY-bounds.top)*canvas.height/bounds.height;
+  const camera=mapCamera();
+  const x=((event.clientX-bounds.left)*canvas.width/bounds.width-camera.x)/camera.scale;
+  const y=((event.clientY-bounds.top)*canvas.height/bounds.height-camera.y)/camera.scale;
   if(choosingPlace){
     const place=TownMap.findPlace(x,y);
     if(place)intervene('visit',place);
     return;
   }
-  const closest=mapPins.reduce((best,pin)=>{
+  const closest=visiblePins.reduce((best,pin)=>{
     if(pin.indoors&&!interiors)return best;
     const distance=Math.hypot(x-pin.x,y-pin.y+4);
     return distance<best.distance?{pin,distance}:best;
-  },{pin:null,distance:Math.max(30,canvas.width/bounds.width*19)});
+  },{pin:null,distance:Math.max(30,canvas.width/bounds.width*19)/camera.scale});
   const guest=TownRail.passengers(world.tick,motion.matches?.62:tickProgress).find(pin=>
     pin.visitor&&Math.min(Math.hypot(x-pin.x,y-pin.y+4),Math.hypot(x-pin.x,y-pin.y+26))<Math.min(24,closest.distance));
   if(guest){openRail(guest.visitor.id);return;}
@@ -139,10 +153,10 @@ canvas.addEventListener('click',event=>{
     $('person').value=closest.pin.resident.id;
     render();
     openResidentProfile();
-  }
+  }else if(TownTradeArt.hit(x,y)||['bakery','market'].includes(TownMap.findPlace(x,y)))openSupply();
 });
 function when(tick){return `第 ${Math.floor(tick/48)+1} 天 ${String(Math.floor(tick%48/2)).padStart(2,'0')}:${tick%2?'30':'00'}`;}
-const modalOpen=()=>['journal','stories','moment','rail','wish','paper','fate','thread','twilight'].some(id=>$(id).open);
+const modalOpen=()=>['journal','stories','moment','rail','wish','paper','fate','thread','twilight','supply'].some(id=>$(id).open);
 function storyNode(tag,value,css){
   const node=document.createElement(tag);
   node.textContent=value;
@@ -163,6 +177,59 @@ function observeAt(at){
   resetCrowd();save();render();
   canvas.focus({preventScroll:true});
   canvas.scrollIntoView({block:'nearest'});
+}
+const supplyLabels={waiting:'等早班列车',unload:'站台等人卸货',inbound:'推车送面粉', 'oven-wait':'等面包师到店',
+  baking:'炉里正在烤',pickup:'面包出炉，等人来搬',outbound:'推车去商街',market:'商街开卖',served:'今天的订单都卖完了',short:'收市，面包还不够',closed:'今日已收市'};
+function renderSupply(){
+  const entry=$('openSupply'),panel=$('supplyPanel'),stage=TownSupply.stage(world);
+  const run=TownSupply.current(world),state=world.supply;
+  const depot=TownSupply.depots[state?.depot??'square'];
+  const close=TownSupply.dayStart(world)+TownSupply.close;
+  entry.dataset.stage=stage;
+  entry.replaceChildren(storyNode('strong','今天的面包'),
+    storyNode('small',`${supplyLabels[stage]} · ${run?.sold??0}/${TownSupply.demand}`));
+  if(!$('supply').open)return;
+  const chain=storyNode('ol','','supply-chain');
+  for(const [label,stages] of [
+    ['车站',['waiting','unload']],['货棚',['inbound','oven-wait']],['面包坊',['baking','pickup']],['商街',['outbound','market','short','served','closed']]
+  ]){
+    const item=storyNode('li',label);
+    if(stages.includes(stage))item.setAttribute('aria-current','step');
+    chain.append(item);
+  }
+  const funds=state?.coins??TownSupply.initialCoins;
+  const nodes=[chain,storyNode('p',`今天需要 ${TownSupply.demand} 个面包 · 18:00 收市 · ${world.weather}`,'story-meta'),
+    storyNode('p',`${supplyLabels[stage]}。已卖 ${run?.sold??0} 个，工坊公款 ${funds} 元。`)];
+  if(run?.leg){
+    const person=world.people.find(p=>p.id===run.leg.person);
+    nodes.push(storyNode('p',`${person.name} 正在负责这一步 · 预计 ${when(Math.min(run.leg.to,close))}${run.leg.to>=close?' 收市前来不及完成':''}`,'story-meta'));
+  }
+  if(world.weather!=='晴朗')nodes.push(storyNode('p','雨雪会拖慢两段推车路线。','story-meta'));
+  const actions=storyNode('div','','story-actions');
+  const helper=TownSupply.helper(world);
+  if(helper)actions.append(storyButton(`请 ${helper.name} 帮忙 · 1 次干预`,()=>{
+    const root=Town.assistSupply(world,helper.id);
+    if(root){watched=root;beep();save();render();$('supplyTitle').focus();}
+  },'story-primary'));
+  if(world.tick<TownSupply.dayStart(world)+TownSupply.arrival)actions.append(storyButton('到早班车卸货时',()=>{
+    $('supply').close();observeAt(TownSupply.dayStart(world)+TownSupply.arrival);
+  }));
+  if(world.tick<close)actions.append(storyButton('看到今天收市',()=>{
+    $('supply').close();observeAt(close);
+  }));
+  nodes.push(actions,storyNode('p',`现在使用${depot.name}。${state?.nextDepot?'新的站边货棚从明天早班车开始使用。':''}`,'story-meta'));
+  if(depot===TownSupply.depots.square&&!state?.nextDepot){
+    const cost=TownSupply.depots.station.cost;
+    const button=storyButton(`修站边货棚 · ${cost} 元`,()=>{
+      if(TownSupply.build(world)){save();render();$('supplyTitle').focus();}
+    });
+    button.disabled=funds<cost;
+    nodes.push(storyNode('p','改建后，明天起卸货到面包坊可节省一个游戏小时。','story-meta'),button);
+  }
+  panel.replaceChildren(...nodes);
+}
+function openSupply(){
+  $('supply').showModal();renderSupply();scheduleNext();refreshMotion();
 }
 function renderTwilight(){
   const scene=TownTwilight.plan(world),current=scene&&TownTwilight.state(world,scene);
@@ -224,7 +291,7 @@ function renderTwilight(){
 function renderRail(){
   const {active,next,phase}=TownRail.schedule(world.tick),button=$('openRail');
   const status={approach:'正在进站',platform:'正在上下车',departure:'正在发车'};
-  button.hidden=choosingPlace;
+  button.hidden=choosingPlace||tradeZoom;
   button.dataset.active=String(Boolean(active));
   button.textContent=active?status[phase]:'列车 ›';
   if(!$('rail').open)return;
@@ -538,7 +605,7 @@ function renderFollow(){
   const result=world.events.findLast(e=>e.type==='moment-favor'&&e.parent===outcome?.id)??outcome;
   const twilight=TownTwilight.plan(world);
   const lantern=twilight&&TownTwilight.state(world,twilight);
-  const pending=TownRipples.pendingFor(world,root.id)||world.pending.some(e=>e.parent===root.id)||TownMoments.active(world)?.root===root.id||TownWishes.activeRoot(world,root.id)||TownRelations.activeRoot(world,root.id)||(!lantern?.result&&lantern?.invite?.root===root.id);
+  const pending=TownSupply.pendingHelp(world,root.id)||TownRipples.pendingFor(world,root.id)||world.pending.some(e=>e.parent===root.id)||TownMoments.active(world)?.root===root.id||TownWishes.activeRoot(world,root.id)||TownRelations.activeRoot(world,root.id)||(!lantern?.result&&lantern?.invite?.root===root.id);
   const badge=document.createElement('strong');
   badge.textContent=pending?'追踪中':result?'后续':'已发生';
   text.append(badge,document.createTextNode(result?.text??root.text));
@@ -582,12 +649,17 @@ function render(){
   $('redirect').disabled=world.tokens<=0;
   $('redirect').setAttribute('aria-expanded',String(choosingPlace));
   $('destinations').hidden=!choosingPlace;
-  $('openSchool').hidden=choosingPlace;
+  if(choosingPlace)tradeZoom=false;
+  $('tradeZoom').hidden=choosingPlace;
+  $('tradeZoom').setAttribute('aria-pressed',String(tradeZoom));
+  $('tradeZoom').textContent=tradeZoom?'回到全镇':'放大商街';
+  $('openSchool').hidden=choosingPlace||tradeZoom;
   renderRail();
   renderTwilight();
+  renderSupply();
   if($('moment').open)renderMoment();
   if($('wish').open)renderWish();
-  $('mapHint').textContent=choosingPlace?`给 ${p.name} 点一个目的地`:'点击居民打开档案';
+  $('mapHint').textContent=choosingPlace?`给 ${p.name} 点一个目的地`:tradeZoom?'点面包坊查看今日生产':'点击居民打开档案';
   const moment=TownMoments.active(world);
   const latest=world.events.findLast(e=>e.type!=='town');
   $('mapStory').hidden=choosingPlace||(!latest&&!moment);
@@ -685,6 +757,9 @@ function openRail(visitor){
   $('rail').showModal();renderRail();scheduleNext();refreshMotion();
   if(visitor)$(`visitor-${visitor}`)?.focus();
 }
+$('openSupply').onclick=openSupply;
+$('closeSupply').onclick=()=>$('supply').close();
+$('tradeZoom').onclick=()=>{tradeZoom=!tradeZoom;render();};
 $('openRail').onclick=()=>openRail();
 $('closeRail').onclick=()=>$('rail').close();
 $('openTwilight').onclick=()=>{$('twilight').showModal();renderTwilight();scheduleNext();refreshMotion();};
@@ -697,7 +772,7 @@ function openResidentProfile(){
 }
 $('openWish').onclick=openResidentProfile;
 $('closeWish').onclick=()=>$('wish').close();
-for(const id of ['journal','stories','moment','rail','wish','paper','fate','thread','twilight'])$(id).addEventListener('close',()=>{scheduleNext();refreshMotion();});
+for(const id of ['journal','stories','moment','rail','wish','paper','fate','thread','twilight','supply'])$(id).addEventListener('close',()=>{scheduleNext();refreshMotion();});
 $('sound').onclick=async()=>{
   if(audio){await audio.close();audio=null;}else{audio=new AudioContext();await audio.resume();beep();}
   const label=audio?'关闭音效':'开启音效';
@@ -761,7 +836,7 @@ function drawPulses(){
   for(const pulse of pulses){
     const k=(now-pulse.born)/2600;
     for(const id of pulse.ids){
-      const pin=mapPins.find(walker=>walker.resident.id===id);
+      const pin=visiblePins.find(walker=>walker.resident.id===id);
       if(!pin||(pin.indoors&&!interiors))continue;
       for(const lag of [0,.28]){
         const t=k-lag;if(t<0||t>1)continue;
