@@ -95,7 +95,7 @@ const TownMoments=(()=>{
     for(const favor of w.favors??[]){
       if(w.tick<favor.after||w.tick>favor.until)continue;
       const a=get(w,favor.a),b=get(w,favor.b);
-      if(a.place==='homes'||!together(a,b))continue;
+      if(['homes','away'].includes(a.place)||!together(a,b))continue;
       const text=`${b.name} 又遇见了 ${a.name}，${scenes[favor.kind].favor}。`;
       const id=log(text,favor.root,'moment-favor',[b.id,a.id]);
       remember(a,b,'town-favor',.55,text,id);

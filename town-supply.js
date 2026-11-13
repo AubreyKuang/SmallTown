@@ -123,6 +123,10 @@ const TownSupply=(()=>{
     const depot=depots[w.supply.depot];
     return [stops.station,depot,stops.bakery];
   }
+  function delivery(w,id){
+    const run=current(w);
+    return run?.leg?.person===id&&['inbound','outbound'].includes(run.stage)?route(w,run):null;
+  }
   const fraction=(leg,tick)=>(leg.offset??0)+(1-(leg.offset??0))*Math.max(0,Math.min(1,(tick-leg.from)/(leg.to-leg.from)));
   const paths=new Map();
   function cargo(w,progress){
@@ -162,5 +166,5 @@ const TownSupply=(()=>{
     const run=current(w);
     return run?.helpEvent===root&&['unload','inbound','oven-wait'].includes(run.stage);
   };
-  return {funds,spend,pendingHelp,demand,arrival,close,initialCoins,depots,dayStart,current,stage,step,helper,assist,build,cargo,assignment,valid};
+  return {funds,spend,pendingHelp,demand,arrival,close,initialCoins,depots,dayStart,current,stage,step,helper,assist,build,cargo,delivery,assignment,valid};
 })();

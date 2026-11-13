@@ -29,7 +29,7 @@ const TownPaper=(()=>{
     if(!s||s.day!==d)s=w.paperDay={day:d,weather:w.weather,visits:{},last:{},trust:snapshot(w),power:false};
     s.power||=w.power;
     for(const p of w.people){
-      if(p.place!=='homes'&&s.last[p.id]!==p.place&&!['work','class','teach','commute','prepare'].includes(p.activity)){
+      if(!['homes','away'].includes(p.place)&&s.last[p.id]!==p.place&&!['work','class','teach','commute','prepare'].includes(p.activity)){
         s.visits[p.id]??={};
         s.visits[p.id][p.place]=(s.visits[p.id][p.place]||0)+1;
       }
@@ -111,6 +111,8 @@ const TownPaper=(()=>{
     if(twilight)sections.push({label:'河畔灯笺',text:twilight.text});
     const settlement=events.filter(e=>e.type==='build-move-in'||e.type==='build-ready');
     if(settlement.length)sections.push({label:'小镇建设',text:settlement.map(e=>e.text).join('\n')});
+    const travel=events.filter(e=>e.type==='travel-depart'||e.type==='travel-return');
+    if(travel.length)sections.push({label:'列车来往',text:travel.map(e=>e.text).join('\n')});
     const supply=events.find(e=>e.type==='supply-close');
     if(supply)sections.push({label:'面包坊与商街',text:supply.text});
     const followed=TownWatch.daily(w,events);

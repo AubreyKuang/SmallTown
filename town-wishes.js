@@ -25,7 +25,7 @@ const TownWishes=(()=>{
   const unavailable=new Set(['sleep','class','teach','prepare']);
   function canRoll(w,id){
     const s=state(w,id);
-    return !!beat(id,s)&&!!person(w,id)&&!s.plan&&s.lastDay!==day(w.tick)&&s.advanced!==day(w.tick)&&w.tokens>0;
+    return !!beat(id,s)&&!!person(w,id)&&!TownTravel.away(person(w,id))&&!s.plan&&s.lastDay!==day(w.tick)&&s.advanced!==day(w.tick)&&w.tokens>0;
   }
   function roll(w,id,random,log){
     if(!canRoll(w,id))return null;

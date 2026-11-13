@@ -25,7 +25,7 @@ let watched=Number.isInteger(world.watchedEvent)?world.watchedEvent:null;
 let snapDay=null;
 // Every save also keeps one snapshot per game day so the player can rewind to that morning.
 function save(){
-  const data={...world,watchedEvent:watched,savedAt:Date.now()};
+  const data={...world,walkingPositions:crowd.positions(),watchedEvent:watched,savedAt:Date.now()};
   const ok=SaveManager.save(localStorage,KEY,data,Town.valid);
   const d=Math.floor(world.tick/48);
   if(ok&&snapDay!==d){
@@ -56,6 +56,7 @@ function populateResidents(){
 }
 populateResidents();
 for(const [key,place] of Object.entries(Town.places)){
+  if(key==='away')continue;
   const button=document.createElement('button');
   button.textContent=place.name;button.onclick=()=>intervene('visit',key);
   $('destinations').append(button);
@@ -64,9 +65,8 @@ $('offline').checked=localStorage.getItem(KEY+':offline')==='yes';
 $('offline').onchange=()=>localStorage.setItem(KEY+':offline',$('offline').checked?'yes':'no');
 if($('offline').checked&&world.savedAt){
   const elapsed=Math.max(0,Math.min(48,Math.floor((Date.now()-world.savedAt)/600000)));
-  for(let i=0;i<elapsed;i++)Town.step(world);
+  advanceTo(world.tick+elapsed);
   if(elapsed)$('notice').textContent=`离线期间，小镇推进了 ${elapsed/2} 小时。`;
-  resetCrowd();
 }
 function beep(){
   if(!audio)return;
@@ -78,7 +78,8 @@ function beep(){
 
 function residentActivity(p){
   const pin=visiblePins.find(walker=>walker.resident.id===p.id);
-  if(pin?.activity==='breadCart'&&TownSupply.current(world)?.leg?.person===p.id)return '在推车送货';
+  if(TownTravel.away(p))return '这两天不在小镇';
+  if(pin?.cart&&TownSupply.delivery(world,p.id))return '在推车送货';
   const place=p.place==='homes'?'家':Town.places[p.place].name;
   const label=TownRoutines.labels[Town.activity(world,p)];
   const companion=pin?.partner&&world.people.find(other=>other.id===pin.partner);
@@ -89,11 +90,10 @@ function personalThought(p){
   return TownRelations.thought(world,p)??TownSkeptic.thought(world,p)??TownRipples.thought(world,p)??TownWishes.thought(world,p,Town.activity(world,p));
 }
 function paint(){
-  const progress=motion.matches?.62:tickProgress;
-  const cargo=TownSupply.cargo(world,progress);
-  visiblePins=cargo?mapPins.map(pin=>pin.resident.id===cargo.person?
-    {...pin,x:cargo.x,y:cargo.y,indoors:false,activity:'breadCart',social:null,partner:null,movingTo:null,
-      step:Math.sin(animationTime/120)*1.4}:pin).sort((a,b)=>a.y-b.y):mapPins;
+  const progress=tickProgress;
+  const carrier=mapPins.find(pin=>pin.cart&&!pin.indoors&&TownSupply.delivery(world,pin.resident.id));
+  const cargo=carrier?{x:carrier.x,y:carrier.y,kind:TownSupply.current(world)?.stage==='inbound'?'flour':'bread'}:null;
+  visiblePins=mapPins;
   const p=selected(),activity=residentActivity(p);
   const bio=`${activity} · 心情 ${p.mood}`;
   if($('bio').textContent!==bio)$('bio').textContent=bio;
@@ -113,7 +113,7 @@ function paint(){
 function createCrowd(){
   return TownMovement.create(world,Math.random,(a,b)=>{
     if(Town.roadTalk(world,a,b))heardConversation=true;
-  });
+  },world.walkingPositions);
 }
 function resetCrowd(){
   if($('person').options.length!==world.people.length)populateResidents();
@@ -122,15 +122,15 @@ function resetCrowd(){
   tickProgress=0;
 }
 function refreshMotion(){
-  const active=!motion.matches&&!document.hidden&&!modalOpen()&&(running||performance.now()<manualUntil);
+  const active=!document.hidden&&!modalOpen()&&(running||performance.now()<manualUntil);
   if(active&&frame===null)frame=requestAnimationFrame(animate);
   if(!active&&frame!==null){cancelAnimationFrame(frame);frame=null;lastFrame=null;}
 }
 function animate(now){
   frame=null;
   if(lastFrame!==null){
-    crowd.advance(Math.min(.05,(now-lastFrame)/1000)*(fast?1.25:1),running);
-    animationTime+=Math.min(50,now-lastFrame);
+    crowd.advance(Math.min(.05,(now-lastFrame)/1000)*(fast?1.65:1),running&&!motion.matches);
+    if(!motion.matches)animationTime+=Math.min(50,now-lastFrame);
     tickProgress=Math.min(1,tickProgress+Math.min(50,now-lastFrame)/tickDuration());
     mapPins=crowd.pins();
     if(heardConversation){heardConversation=false;save();render();}
@@ -171,7 +171,7 @@ canvas.addEventListener('click',event=>{
     const distance=Math.hypot(x-pin.x,y-pin.y+4);
     return distance<best.distance?{pin,distance}:best;
   },{pin:null,distance:Math.max(30,TownCamera.width/bounds.width*19)/camera.scale});
-  const guest=TownRail.passengers(world.tick,motion.matches?.62:tickProgress).find(pin=>
+  const guest=TownRail.passengers(world.tick,tickProgress).find(pin=>
     pin.visitor&&Math.min(Math.hypot(x-pin.x,y-pin.y+4),Math.hypot(x-pin.x,y-pin.y+26))<Math.min(24,closest.distance));
   if(guest){openRail(guest.visitor.id);return;}
   if(closest.pin){
@@ -195,10 +195,10 @@ function storyButton(label,action,css){
 function observeAt(at){
   setRunning(false);
   const previousPaper=world.papers?.at(-1);
-  while(world.tick<at)Town.step(world);
+  advanceTo(at);
   const latestPaper=world.papers?.at(-1);
   if(latestPaper&&latestPaper!==previousPaper)skippedPaperDay=latestPaper.day;
-  resetCrowd();save();render();
+  save();render();
   canvas.focus({preventScroll:true});
   canvas.scrollIntoView({block:'nearest'});
 }
@@ -381,7 +381,10 @@ function renderRail(){
   if(!$('rail').open)return;
   const list=storyNode('ol','','rail-list');
   for(const service of TownRail.services(Math.floor(world.tick/48))){
-    list.append(storyNode('li',`${when(service.start+1)} 到站 · ${service.arrivals} 位下车 · ${service.departures} 位上车`));
+    const trips=Object.values(world.trips??{});
+    const arrivals=service.arrivals+trips.filter(trip=>trip.back===service.start+1).length;
+    const departures=service.departures+trips.filter(trip=>trip.depart===service.start+2).length;
+    list.append(storyNode('li',`${when(service.start+1)} 停靠 · ${arrivals} 位下车 · ${departures} 位上车`));
   }
   const guests=storyNode('div','','rail-guests');
   for(const {profile,trip,history} of TownVisitors.timetable(world)){
@@ -402,11 +405,27 @@ function renderRail(){
     }
     guests.append(card);
   }
-  $('railPanel').replaceChildren(storyNode('h3',active?status[phase]:`下一班 ${when(next.start+1)}`),list,
-    storyNode('h3','来镇上的旅客'),guests);
+  const panel=$('railPanel');
+  panel.replaceChildren(storyNode('h3',active?status[phase]:`下一班 ${when(next.start+1)}`),list);
+  const residents=world.people.filter(p=>{
+    const trip=TownTravel.tripFor(world,p);
+    return trip&&!trip.returned;
+  });
+  if(residents.length){
+    const roster=storyNode('ul','','rail-list');
+    for(const p of residents){
+      const trip=TownTravel.tripFor(world,p),row=storyNode('li','');
+      row.append(storyButton(p.name,()=>{$('rail').close();chooseResident(p.id);openResidentProfile();}),
+        storyNode('span',` · ${TownTravel.away(p)?'在外地':'已订票'} · ${TownTravel.destination(trip)} · ${when(trip.back)} 回镇`));
+      roster.append(row);
+    }
+    panel.append(storyNode('h3','居民的旅程'),roster);
+  }
+  panel.append(storyNode('h3','来镇上的旅客'),guests);
 }
 function renderWish(){
   const p=selected(),profile=TownWishes.profile(p.id),state=TownWishes.state(world,p.id),panel=$('wishPanel');
+  const trip=TownTravel.tripFor(world,p);
   const thought=personalThought(p),date=TownRelations.date(world,p);
   $('wishTitle').textContent=`${p.name} 的人物档案`;
   function switchResident(id){
@@ -429,6 +448,17 @@ function renderWish(){
   followButton.id='followResident';followButton.disabled=atLimit;
   const followActions=storyNode('div','','story-actions');
   followActions.append(followButton);panel.append(followActions);
+  if(trip)panel.append(storyNode('p',trip.returned?
+    `已从${TownTravel.destination(trip)}回镇 · ${TownTravel.keepsake(trip)}`:
+    `${TownTravel.away(p)?'不在小镇':`已订车票 · ${when(trip.depart)} 出发`} · ${TownTravel.destination(trip)} · ${when(trip.back)} 返回`,'story-result'));
+  if(trip&&!trip.returned&&TownTravel.away(p))panel.append(storyButton('去车站等返程列车',()=>{
+    $('wish').close();
+    observeAt(trip.back-1);
+    setRunning(true);
+  }));
+  if(TownTravel.possible(world,p))panel.append(storyButton('安排两天火车旅行',()=>{
+    if(Town.bookTrip(world,p)){save();render();$('wishTitle').focus();}
+  }));
   if(p.homePlot!=null)panel.append(storyNode('p',`住址 · ${TownBuild.plots[p.homePlot].name}`,'story-meta'));
   const current=Town.activity(world,p);
   for(let tick=world.tick+1;tick<=world.tick+48;tick++){
@@ -451,8 +481,8 @@ function renderWish(){
     const actions=storyNode('div','','story-actions');
     actions.append(storyButton(`查看 ${other.name} 怎么想`,()=>switchResident(other.id)));
     if(!plan.result&&world.tick<plan.at-1)actions.append(storyButton('前进到见面前半小时',()=>{
-      while(world.tick<plan.at-1)Town.step(world);
-      resetCrowd();save();render();panel.querySelector('.resident-section h3').focus();
+      advanceTo(plan.at-1);
+      save();render();panel.querySelector('.resident-section h3').focus();
     }));
     if(canNudge)actions.append(storyButton('掷骰争取早点收摊 · 1 次干预',()=>{
       const root=Town.nudgeDate(world,p.id);
@@ -496,8 +526,8 @@ function renderWish(){
     const place=Town.places[goal.place].name;
     panel.append(storyNode('p',`${when(at)} 到 ${when(until).split(' ').at(-1)} · ${place} · 想见 ${other.name}`,'story-meta'));
     if(world.tick<at-1)actions.append(storyButton('前进到机会前半小时',()=>{
-      while(world.tick<at-1)Town.step(world);
-      resetCrowd();save();render();panel.querySelector('h3').focus();
+      advanceTo(at-1);
+      save();render();panel.querySelector('h3').focus();
     }));
     actions.append(storyButton(`观察 ${other.name}`,()=>{$('wish').close();chooseResident(other.id);}));
   }else{
@@ -535,8 +565,8 @@ function renderMoment(){
     panel.append(storyNode('p',`${a.name} 会在原处等。${b.name} 按目前的日程会去${destination}，可以临近赴约时让对方改道。`));
     panel.append(storyButton(`观察 ${b.name}`,()=>{$('moment').close();chooseResident(b.id);}));
     if(world.tick<m.until-2)panel.append(storyButton('前进到赴约前 1 小时',()=>{
-      while(world.tick<m.until-2)Town.step(world);
-      resetCrowd();save();render();
+      advanceTo(m.until-2);
+      save();render();
     }));
     return;
   }
@@ -577,8 +607,8 @@ function renderStories(){
       $('stories').close();chooseResident(helper.id);
     }));
     if(world.tick<active.time-2)actions.append(storyButton('前进到集合前 1 小时',()=>{
-      while(world.tick<active.time-2)Town.step(world);
-      resetCrowd();save();render();$('storyPanel').querySelector('h3').focus();
+      advanceTo(active.time-2);
+      save();render();$('storyPanel').querySelector('h3').focus();
     }));
     panel.firstElementChild.tabIndex=-1;
     panel.append(actions,storyNode('p','到约定时刻，两人需要都在现场。你也可以用「改道」让搭档准时到场。','story-meta'));
@@ -731,7 +761,8 @@ function render(){
   $('openWish').setAttribute('aria-label',`查看 ${p.name} 的人物档案`);
   document.querySelectorAll('[data-kind]').forEach(button=>button.disabled=!Town.canAct(world,p,button.dataset.kind));
   if(world.tokens<=0)choosingPlace=false;
-  $('redirect').disabled=world.tokens<=0;
+  $('redirect').disabled=!Town.canAct(world,p,'visit');
+  if($('redirect').disabled)choosingPlace=false;
   $('redirect').setAttribute('aria-expanded',String(choosingPlace));
   $('destinations').hidden=!choosingPlace;
   renderRail();
@@ -758,9 +789,22 @@ function render(){
   renderExtras();
   updateCamera();
 }
+function syncCrowd(){
+  crowd.sync();
+  mapPins=crowd.pins();
+  if($('person').options.length!==world.people.length)populateResidents();
+}
+function advanceTo(target){
+  while(world.tick<target){
+    Town.step(world);
+    if(world.tick<target)crowd.advance(7.2,false);
+  }
+  tickProgress=0;
+  syncCrowd();
+}
 function advance(){
   Town.step(world);
-  if(motion.matches||$('person').options.length!==world.people.length)resetCrowd();
+  syncCrowd();
   tickProgress=0;
   save();render();
 }
@@ -798,10 +842,10 @@ $('toNight').onclick=()=>{
   setRunning(false);
   const target=(Math.floor(world.tick/48)+1)*48;
   const previousPaper=world.papers?.at(-1);
-  while(world.tick<target)Town.step(world);
+  advanceTo(target);
   const latestPaper=world.papers?.at(-1);
   if(latestPaper&&latestPaper!==previousPaper)skippedPaperDay=latestPaper.day;
-  resetCrowd();save();render();
+  save();render();
 };
 $('auto').onclick=()=>setRunning(!running);
 $('speed').onclick=()=>{fast=!fast;$('speed').textContent=fast?'3×':'1×';scheduleNext();};
@@ -900,7 +944,7 @@ $('sound').onclick=async()=>{
 for(const button of document.querySelectorAll('[data-kind]'))button.onclick=()=>intervene(button.dataset.kind);
 $('export').onclick=()=>{
   const link=document.createElement('a');
-  link.href=URL.createObjectURL(new Blob([JSON.stringify({...world,watchedEvent:watched},null,2)],{type:'application/json'}));
+  link.href=URL.createObjectURL(new Blob([JSON.stringify({...world,walkingPositions:crowd.positions(),watchedEvent:watched},null,2)],{type:'application/json'}));
   link.download='god-dice-save.json';link.click();setTimeout(()=>URL.revokeObjectURL(link.href),1000);
 };
 $('importButton').onclick=()=>$('import').click();
@@ -1174,7 +1218,7 @@ $('awareness').onclick=()=>openFate('newton');
 $('closeThread').onclick=()=>$('thread').close();
 window.addEventListener('resize',paint);
 document.addEventListener('visibilitychange',()=>{music.setHidden(document.hidden);scheduleNext();refreshMotion();});
-motion.addEventListener('change',()=>{if(motion.matches){resetCrowd();paint();}refreshMotion();});
+motion.addEventListener('change',()=>{paint();refreshMotion();});
 window.addEventListener('pagehide',save);
 save();render();
 setRunning(true);

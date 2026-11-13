@@ -96,7 +96,7 @@ const TownRelations=(()=>{
   }
   function nudge(w,id,random,log){
     const pair=pairFor(id),plan=pair&&state(w,pair);
-    if(!pair||!canNudge(w,pair,plan))return null;
+    if(!pair||TownTravel.away(byId(w,id))||!canNudge(w,pair,plan))return null;
     plan.die=1+Math.floor(random()*6);
     w.tokens--;
     const other=byId(w,pair.b);
@@ -108,7 +108,7 @@ const TownRelations=(()=>{
     if(!pair)return null;
     const saved=state(w,pair),plan=saved??nextPlan(w,pair);
     return {pair,plan,place:venue(pair,plan),other:byId(w,partnerId(pair,p.id)),
-      conflict:shiftConflict(pair,plan)>plan.at,canNudge:canNudge(w,pair,saved)};
+      conflict:shiftConflict(pair,plan)>plan.at,canNudge:!TownTravel.away(p)&&canNudge(w,pair,saved)};
   }
   function thought(w,p){
     const info=date(w,p);

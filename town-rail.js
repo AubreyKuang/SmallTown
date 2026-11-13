@@ -55,7 +55,6 @@ const TownRail=(()=>{
         let position,phase;
         const explore=origin.start+2.2+i*.12,reach=visit?.reach??origin.start+5.6+i*.12;
         const returnAt=visit?.leave??Math.max(reach,next.start-3.2-i*.08),queueAt=next.start+.36+i*.11;
-        if(time<returnAt&&(origin.day<day||origin.index===2&&time>=origin.day*48+44))continue;
         if(time<explore){
           position=TownMap.position(p.platformPath,fraction(time,alight,explore));phase='alight';
         }else if(time<reach){

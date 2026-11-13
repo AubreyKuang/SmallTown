@@ -4,7 +4,7 @@ const Town = (() => {
     homes:{name:'居民区',x:90,y:86}, bakery:{name:'面包店',x:200,y:85},
     cafe:{name:'咖啡厅',x:270,y:86}, market:{name:'商业街',x:345,y:83},
     square:{name:'中央广场',x:232,y:182}, station:{name:'火车站',x:422,y:190},
-    forest:{name:'树林',x:92,y:213}, school:{name:'微光小学'}, schoolyard:{name:'学校操场'}
+    forest:{name:'树林',x:92,y:213}, school:{name:'微光小学'}, schoolyard:{name:'学校操场'}, away:{name:'镇外'}
   };
   const residentDefaults={place:'homes',money:20,mood:65,suspicion:0,override:null,delay:0};
   const population=names.length+TownSchool.roster.length;
@@ -59,7 +59,7 @@ const Town = (() => {
   }
   function roadTalk(w,first,second){
     const a=w.people.find(p=>p.id===first),b=w.people.find(p=>p.id===second);
-    if(!a||!b||a===b)return false;
+    if(!a||!b||a===b||TownTravel.away(a)||TownTravel.away(b))return false;
     const recent=w.events.filter(e=>e.type==='road-talk'&&e.tick>=w.tick-w.tick%48);
     if(recent.some(e=>e.ids.includes(first)&&e.ids.includes(second))||recent.filter(e=>e.tick===w.tick).length>=2)return false;
     const topic=TownSchool.student(a)&&TownSchool.student(b)?'聊了几句学校里的事':
@@ -71,6 +71,8 @@ const Town = (() => {
     return true;
   }
   function schedule(w,p) {
+    const travel=TownTravel.schedule(w,p);
+    if(travel)return travel;
     const h=w.tick%48/2;
     if(p.override?.until>w.tick)return {place:p.override.place,activity:p.override.place==='station'&&p.override.bus?'commute':'visit'};
     const home=p.homePlot==null?null:TownBuild.house(w,p.homePlot);
@@ -92,14 +94,14 @@ const Town = (() => {
     const planned=schedule(w,p);
     return planned.place===p.place?planned.activity:p.place==='homes'?'rest':p.job===p.place?'work':'visit';
   }
-  const canAct=(w,p,kind)=>w.tokens>0&&
+  const canAct=(w,p,kind)=>w.tokens>0&&!TownTravel.away(p)&&!['trainWait','trainBoard','trainReturn'].includes(p.activity)&&
     (kind!=='delay'||p.id!==TownSchool.teacher&&!TownSchool.student(p)&&TownRoutines.canDelay(w,p))&&
     (!TownSchool.student(p)||!['bus','lottery'].includes(kind));
   // Today's intervention budget: 3 base, plus up to 2 earned from yesterday's finished requests.
   const dailyTotal=w=>3+(w.goals?.bonus??0);
   function influence(w,id,kind,place) {
     const p=w.people.find(person=>person.id===id);
-    if(!p||!canAct(w,p,kind)||!['delay','lost','coin','bus','lottery','visit'].includes(kind)||(kind==='visit'&&!Object.hasOwn(places,place)))return false;
+    if(!p||!canAct(w,p,kind)||!['delay','lost','coin','bus','lottery','visit'].includes(kind)||(kind==='visit'&&(place==='away'||!Object.hasOwn(places,place))))return false;
     w.tokens--;
     p.suspicion+=p.temperament==='skeptic'?2:1;
     let parent;
@@ -146,7 +148,7 @@ const Town = (() => {
       log(w,text,entry.parent,'late',[p.id]);
       return true;
     }
-    const peers=w.people.filter(other=>other!==p&&other.place===p.place&&other.place!=='homes');
+    const peers=w.people.filter(other=>other!==p&&other.place===p.place&&!['homes','away'].includes(other.place));
     const candidate=peers.find(other=>entry.kind==='meeting'
       ? !(other.override?.until>w.tick)
       : entry.kind==='loan'?!TownSchool.student(other):other.temperament==='generous');
@@ -213,6 +215,11 @@ const Town = (() => {
       Object.assign(p,schedule(w,p));
       p.mood=Math.max(0,Math.min(100,p.mood));
     }
+    TownTravel.step(w,(message,type,ids)=>log(w,message,null,type,ids),(person,place,thought,source)=>{
+      NPCMemory.record(w,{type:'travel-return',time:w.tick,participants:[person.id],source},[
+        {person:person.id,subject:place,emotion:.78,impact:80,interpretation:thought}
+      ]);
+    });
     w.pending=w.pending.filter(entry=>w.tick<entry.at||!resolve(w,entry));
     if(hour>=22&&hour<43&&((w.seed>>>4)+w.tick*3)%7===0)localEncounter(w);
     TownSchool.encounter(w,(...args)=>log(w,...args),(...args)=>memory(w,...args));
@@ -239,10 +246,10 @@ const Town = (() => {
     &&([names.length,population].includes(w.people.length)&&w.people.every(p=>p.id<=w.people.length)||
       w.people.length>population&&w.people.filter(p=>p.id<=population).length===population)&&TownBuild.valid(w,population)
     &&new Set(w.people.map(p=>p.id)).size===w.people.length
-    &&w.people.every(p=>Object.hasOwn(places,p.job)&&Object.hasOwn(places,p.habit)&&p.trust&&typeof p.trust==='object')
+    &&w.people.every(p=>p.job!=='away'&&p.habit!=='away'&&Object.hasOwn(places,p.job)&&Object.hasOwn(places,p.habit)&&p.trust&&typeof p.trust==='object')
     &&Array.isArray(w.pending)&&w.pending.every(p=>['late','help','meeting','loan'].includes(p.kind)&&w.people.some(person=>person.id===p.person))
     &&Number.isInteger(w.sequence)&&Number.isInteger(w.tokens)&&w.tokens>=0&&w.tokens<=5&&TownStories.valid(w)&&TownMoments.valid(w)&&TownWishes.valid(w)&&TownRelations.valid(w)
-    &&TownRipples.valid(w)&&TownSkeptic.valid(w)&&TownGoals.valid(w)&&TownPaper.valid(w)&&TownWatch.valid(w)&&TownVisitors.valid(w)&&TownTwilight.valid(w)&&TownSupply.valid(w);
+    &&TownRipples.valid(w)&&TownSkeptic.valid(w)&&TownGoals.valid(w)&&TownPaper.valid(w)&&TownWatch.valid(w)&&TownVisitors.valid(w)&&TownTwilight.valid(w)&&TownSupply.valid(w)&&TownTravel.valid(w);
   // Older saves carry no ripple, skeptic, goal or paper state. Those modules start fresh from the current tick.
   function migrate(data,from){
     if(!data||typeof data!=='object')return data;
@@ -263,5 +270,6 @@ const Town = (() => {
   const forecast=(w,p,tick)=>forecastPlan(w,p,tick).place;
   const assistSupply=(w,id)=>TownSupply.assist(w,id,(...args)=>log(w,...args));
   const placeBuilding=(w,plot,type)=>TownBuild.place(w,plot,type,(...args)=>log(w,...args));
-  return {placeBuilding,assistSupply,create,step,influence,places,valid,migrate,startStory,inviteStory,forecast,forecastPlan,activity,canAct,dailyTotal,upgrade,chooseMoment,roadTalk,rollWish,nudgeDate,inviteTwilight};
+  const bookTrip=(w,p)=>TownTravel.book(w,p,(message,type,ids)=>log(w,message,null,type,ids));
+  return {bookTrip,placeBuilding,assistSupply,create,step,influence,places,valid,migrate,startStory,inviteStory,forecast,forecastPlan,activity,canAct,dailyTotal,upgrade,chooseMoment,roadTalk,rollWish,nudgeDate,inviteTwilight};
 })();

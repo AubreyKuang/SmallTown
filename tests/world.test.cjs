@@ -2,8 +2,8 @@ const assert = require('node:assert/strict');
 const {test} = require('node:test');
 const {readFileSync} = require('node:fs');
 const vm = require('node:vm');
-const source=['npc-memory.js','save-manager.js','town-school.js','town-stories.js','town-routines.js','town-moments.js','town-visitors.js','town-rail.js','town-wishes.js','town-relations.js','town-ripples.js','town-skeptic.js','town-goals.js','town-watch.js','town-twilight.js','town-supply.js','town-paper.js','town-build.js','world.js','town-homes.js','town-interiors.js','town-atmosphere.js','town-map.js','town-movement.js'].map(name=>readFileSync(require('node:path').join(__dirname,'..',name),'utf8')).join('\n');
-const {Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes,TownRelations,TownRipples,TownSkeptic,TownGoals,TownPaper,TownWatch,TownVisitors,TownTwilight,TownAtmosphere,TownSupply,TownBuild}=vm.runInNewContext(source+'\n({Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes,TownRelations,TownRipples,TownSkeptic,TownGoals,TownPaper,TownWatch,TownVisitors,TownTwilight,TownAtmosphere,TownSupply,TownBuild})');
+const source=['npc-memory.js','save-manager.js','town-school.js','town-stories.js','town-routines.js','town-moments.js','town-visitors.js','town-rail.js','town-wishes.js','town-relations.js','town-ripples.js','town-skeptic.js','town-goals.js','town-watch.js','town-twilight.js','town-supply.js','town-paper.js','town-build.js','town-travel.js','world.js','town-homes.js','town-interiors.js','town-atmosphere.js','town-map.js','town-movement.js'].map(name=>readFileSync(require('node:path').join(__dirname,'..',name),'utf8')).join('\n');
+const {Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes,TownRelations,TownRipples,TownSkeptic,TownGoals,TownPaper,TownWatch,TownVisitors,TownTwilight,TownAtmosphere,TownSupply,TownBuild,TownTravel}=vm.runInNewContext(source+'\n({Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes,TownRelations,TownRipples,TownSkeptic,TownGoals,TownPaper,TownWatch,TownVisitors,TownTwilight,TownAtmosphere,TownSupply,TownBuild,TownTravel})');
 function to(w,t){while(w.tick<t)Town.step(w);}
 function visualRandom(seed){
   return ()=>{
@@ -745,4 +745,109 @@ test('a duplex shares the economy, houses two distinct adults, and rejects incon
   const bad=JSON.parse(JSON.stringify(w));
   bad.people.at(-1).homePlot=2;
   assert.equal(Town.valid(bad),false);
+});
+
+test('a resident boards at the station, stays away across a reload, and returns with one memory',()=>{
+  const w=Town.create(8);
+  to(w,25);
+  const p=w.people.find(person=>person.job==='bakery');
+  const crowd=TownMovement.create(w,visualRandom(15));
+  assert.ok(Town.bookTrip(w,p));
+  assert.equal(Town.bookTrip(w,p),false);
+  assert.equal(Town.influence(w,p.id,'visit','away'),false);
+  const trip=TownTravel.tripFor(w,p);
+  const pin=()=>crowd.pins().find(pin=>pin.resident.id===p.id);
+  const visualTick=()=>{
+    Town.step(w);
+    for(let i=0;i<144;i++)crowd.advance(.05,false);
+  };
+  while(w.tick<trip.depart-2)visualTick();
+  assert.equal(p.activity,'trainWait');
+  assert.equal(pin().x,879);
+  const before=pin();
+  Town.step(w);
+  crowd.advance(.05,false);
+  assert.ok(pin().x>before.x&&pin().x-before.x<2.3);
+  for(let i=0;i<144;i++)crowd.advance(.05,false);
+  assert.equal(pin(),undefined);
+  visualTick();
+  assert.equal(p.place,'away');
+  assert.equal(Town.influence(w,p.id,'coin'),false);
+  assert.equal(Town.roadTalk(w,p.id,w.people[0].id),false);
+  assert.equal(w.events.filter(e=>e.type==='travel-depart').length,1);
+
+  const map=new Map(),storage={getItem:key=>map.get(key),setItem:(key,value)=>map.set(key,value)};
+  assert.ok(SaveManager.save(storage,'town',{...w,walkingPositions:crowd.positions()},Town.valid));
+  const saved=SaveManager.load(storage,'town',Town.valid,Town.migrate);
+  assert.ok(saved);
+  const resumed=TownMovement.create(saved,visualRandom(10),undefined,saved.walkingPositions);
+  assert.ok(!resumed.pins().some(pin=>pin.resident.id===p.id));
+  to(saved,trip.back-1);
+  const returning=saved.people.find(person=>person.id===p.id);
+  assert.equal(returning.place,'away');
+  returning.mood=60;
+  Town.step(saved);resumed.sync();
+  const arrival=resumed.pins().find(pin=>pin.resident.id===p.id);
+  assert.equal(arrival.x,891);
+  assert.equal(returning.activity,'trainReturn');
+  assert.equal(returning.mood,68);
+  resumed.advance(.05,false);
+  assert.ok(resumed.pins().find(pin=>pin.resident.id===p.id).x<arrival.x);
+  to(saved,trip.back+48);
+  assert.ok(Town.valid(saved));
+  assert.equal(saved.events.filter(e=>e.type==='travel-return').length,1);
+  assert.equal(NPCMemory.recall(saved,p.id).filter(m=>m.type==='travel-return').length,1);
+  assert.ok(saved.papers.some(paper=>paper.sections.some(s=>s.label==='列车来往')));
+});
+
+test('new arrivals leave existing walkers alone and saved positions resume mid-walk',()=>{
+  const w=Town.create(8);
+  to(w,17);
+  assert.ok(Town.placeBuilding(w,4,'cottage'));
+  to(w,65);
+  const crowd=TownMovement.create(w,visualRandom(11));
+  Town.step(w);
+  crowd.advance(.2,false);
+  const newcomer=w.people.find(p=>p.homePlot===4);
+  const positions=crowd.positions();
+  const loaded=JSON.parse(JSON.stringify(w));
+  const restored=TownMovement.create(loaded,visualRandom(19),undefined,positions);
+  assert.deepEqual(restored.positions(),positions);
+  assert.ok(crowd.pins().find(pin=>pin.resident.id===newcomer.id).x<891);
+
+  const otherWorld=Town.create(8);
+  to(otherWorld,17);
+  assert.ok(Town.placeBuilding(otherWorld,4,'cottage'));
+  to(otherWorld,65);
+  const existing=TownMovement.create(otherWorld,visualRandom(14));
+  const before=existing.positions();
+  Town.step(otherWorld);existing.sync();
+  for(const [id,pos] of Object.entries(before))assert.deepEqual(existing.positions()[id],pos);
+  assert.equal(existing.pins().find(pin=>pin.resident.homePlot===4).x,891);
+});
+
+test('evening passengers remain at their destinations through midnight',()=>{
+  const idsAt=tick=>new Map(TownRail.passengers(tick,0).map(pin=>[pin.id,pin]));
+  const before=idsAt(43);
+  assert.ok(before.size>0);
+  for(const [id,pin] of before)assert.deepEqual(idsAt(48).get(id),pin);
+});
+
+test('the bread cart follows its carrier after pickup without relocating the resident',()=>{
+  const w=Town.create(8);
+  to(w,17);
+  const crowd=TownMovement.create(w,visualRandom(17));
+  while(TownSupply.stage(w)!=='inbound'&&w.tick<36){
+    Town.step(w);
+    if(TownSupply.stage(w)!=='inbound')for(let i=0;i<144;i++)crowd.advance(.05,false);
+  }
+  const carrier=TownSupply.current(w).leg.person;
+  const pin=()=>crowd.pins().find(pin=>pin.resident.id===carrier);
+  const before=pin();
+  crowd.advance(.05,false);
+  assert.ok(Math.hypot(before.x-pin().x,before.y-pin().y)<2.3);
+  const [pickup]=TownSupply.delivery(w,carrier);
+  for(let i=0;i<900&&!pin().cart;i++)crowd.advance(.05,false);
+  assert.ok(pin().cart);
+  assert.ok(Math.hypot(pickup.x-pin().x,pickup.y-pin().y)<2.3);
 });
