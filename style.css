@@ -16,7 +16,7 @@ p,h1,h2,h3,ol,ul{margin:0}h1,h2,h3{line-height:1.2}
 
 .school-entry{position:absolute;top:15.6%;left:67.3%;transform:translateX(-50%);min-height:28px;padding:2px 7px;background:#f1dcaa;border-color:#aa8b60;font-size:12px;box-shadow:0 2px 0 #76573e66}
 .rail-entry{position:absolute;top:58.6%;left:85.6%;transform:translateX(-50%);min-height:27px;padding:2px 7px;background:#f1dcaa;border-color:#aa8b60;font-size:12px;box-shadow:0 2px 0 #76573e66;white-space:nowrap}.rail-entry[data-active=true]{background:#edbd79}.rail-list{display:grid;gap:6px;padding:0;list-style:none}.rail-list li{padding:7px 9px;background:#efe6ce;border-radius:7px}
-.wish-thought{font-size:18px;padding:10px 12px;border-left:3px solid #bb9556;background:#f4ead0}.wish-die{display:flex;align-items:center;gap:10px}.wish-die span:first-child{font-size:37px;line-height:1.1;color:#94613e}.wish-people{display:flex;gap:6px;flex-wrap:wrap}.wish-people button[aria-pressed=true]{background:#e2ebd2;border-color:#81956a}
+.wish-thought{font-size:18px;padding:10px 12px;border-left:3px solid #bb9556;background:#f4ead0}.wish-die{display:flex;align-items:center;gap:10px}.wish-die span:first-child{font-size:37px;line-height:1.1;color:#94613e}
 .school-roster{display:flex;gap:5px;flex-wrap:wrap}.school-roster button{min-height:31px;padding:4px 7px;font-size:12px}
 .moment-actions{display:grid;gap:6px}.moment-actions button{text-align:left}.moment-actions small{display:block;color:#626b54}.moment-portraits{display:flex;align-items:center;gap:9px}.moment-portraits canvas{width:42px;height:42px;border-radius:50%;background:#e4ddbc}.moment-portraits span{font-weight:700;font-size:13px}
 .connections{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:7px}.connections span{padding:3px 7px;border-radius:8px;background:#e4ead4;color:#425b43;font-size:12px}
@@ -117,11 +117,10 @@ dialog{width:min(760px,calc(100% - 24px));max-height:88vh;border:1px solid var(-
 .side-tabs button{min-height:37px;padding:4px;border:0;background:transparent;color:#4d5845;font-weight:700}
 .side-tabs button[aria-selected=true]{color:#fff7e1;background:#365343;box-shadow:0 2px 4px #26382c30}
 .side-content{display:grid;gap:9px;padding:12px 10px 16px;min-width:0}
-.side-fate .resident{grid-template-columns:43px minmax(0,1fr) auto;gap:7px;align-items:center}
+.side-fate .resident{grid-template-columns:43px minmax(0,1fr);gap:7px;align-items:center}
 .side-fate #portrait{width:43px;height:43px}
 .side-fate .resident select{padding:0 3px;font-size:15px}
 .side-fate .resident p{padding-left:3px;font-size:11px;overflow-wrap:anywhere}
-.profile-link{min-height:36px;padding:4px 6px;border:0;background:transparent;color:#3e604a;font-size:12px;font-weight:700;white-space:nowrap}
 .fate-actions{padding:10px;border:1px solid #d7ba81;border-radius:12px;background:linear-gradient(155deg,#fbf0d4,#f3e4bd)}
 .fate-actions .fate-head{gap:4px;flex-wrap:nowrap}
 .fate-actions .fate-head h2{font-size:16px;white-space:nowrap}
@@ -146,7 +145,7 @@ dialog{width:min(760px,calc(100% - 24px));max-height:88vh;border:1px solid var(-
 .side-content .resident-watch{border:1px solid #e0d3b4;border-radius:9px;background:#f5ead1}
 .build-placement{margin:9px 10px 0;border:1px solid #d8dfbf;border-radius:9px}
 @media(max-width:530px){
-  .side-tabs button,.profile-link,.side-link{min-height:42px}
+  .side-tabs button,.side-link{min-height:42px}
 }
 
 #music[aria-pressed=true],#sound[aria-pressed=true]{border-color:#eac477;color:#ffdf96}
@@ -169,7 +168,11 @@ dialog{width:min(760px,calc(100% - 24px));max-height:88vh;border:1px solid var(-
 .conversation-profiles button{display:flex;align-items:center;gap:6px;min-height:44px;padding:3px 8px;font-size:13px}
 .conversation-profiles canvas{width:30px;height:30px;border-radius:50%;background:#ebe2c9}
 
-.profile-identity{display:flex;align-items:center;gap:12px}
-.profile-identity canvas{flex:none;width:64px;height:64px;border-radius:12px;background:#e7e7d0}
-.profile-identity strong{font-size:16px}
-.profile-identity .story-meta{margin-top:3px}
+
+.resident-profile{min-width:0;margin-top:3px;padding:12px 10px;border:1px solid #ded2b5;border-radius:11px;background:#fbf6e8;overflow-wrap:anywhere}
+.resident-profile>h2{margin-bottom:8px;font-size:16px}
+#residentProfileContent{display:grid;gap:8px}
+.resident-profile h3{font-size:14px}
+.resident-profile .wish-thought{padding:7px 8px;font-size:13px}
+.resident-profile .profile-relations{grid-template-columns:minmax(0,1fr)}
+.resident-profile button{max-width:100%;font-size:12px}

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#263e35">
 <title>上帝扔骰子 · 微光镇</title>
-<link rel="stylesheet" href="style.css?v=23">
+<link rel="stylesheet" href="style.css?v=24">
 </head>
 <body>
 <main class="game">
@@ -56,7 +56,6 @@
       <div class="resident">
         <canvas id="portrait" width="64" height="64" aria-hidden="true"></canvas>
         <div><label class="sr-only" for="person">选择居民</label><select id="person"></select><p id="bio"></p></div>
-        <button id="openWish" class="profile-link">档案 <span aria-hidden="true">›</span></button>
       </div>
       <section class="fate-actions" aria-labelledby="fateHeading">
         <div class="fate-head"><h2 id="fateHeading">拨动命运</h2><p id="tokens"></p></div>
@@ -77,6 +76,10 @@
           <strong>小镇察觉度</strong><small id="awarenessText"></small>
         </button>
       </div>
+      <section id="residentProfile" class="resident-profile" aria-labelledby="residentProfileTitle">
+        <h2 id="residentProfileTitle" tabindex="-1">人物档案</h2>
+        <div id="residentProfileContent"></div>
+      </section>
     </section>
     <section class="side-content" id="sideEconomy" role="tabpanel" aria-labelledby="side-economy" hidden>
       <div class="town-balance"><span>居民 <strong id="townPopulation"></strong></span><span>公款 <strong id="townFunds"></strong></span></div>
@@ -106,10 +109,6 @@
 <dialog id="conversation" aria-labelledby="conversationTitle">
   <div class="journal-head"><h2 id="conversationTitle"></h2><button id="closeConversation" aria-label="关闭对话">×</button></div>
   <div id="conversationPanel" class="story-panel"></div>
-</dialog>
-<dialog id="wish" aria-labelledby="wishTitle">
-  <div class="journal-head"><h2 id="wishTitle" tabindex="-1">人物档案</h2><button id="closeWish" aria-label="关闭人物档案">×</button></div>
-  <div id="wishPanel" class="story-panel"></div>
 </dialog>
 <dialog id="rail" aria-labelledby="railTitle">
   <div class="journal-head"><h2 id="railTitle">微光镇车站</h2><button id="closeRail" aria-label="关闭列车时刻">×</button></div>
@@ -147,5 +146,5 @@
   <div class="save-controls"><button id="export">导出存档</button><button id="importButton">导入存档</button><input id="import" type="file" accept="application/json,.json" hidden><label><input id="offline" type="checkbox"> 离线推进</label></div>
 </dialog>
 </main>
-<script src="npc-memory.js"></script><script src="save-manager.js?v=2"></script><script src="town-school.js?v=2"></script><script src="town-stories.js?v=5"></script><script src="town-routines.js?v=16"></script><script src="town-moments.js?v=3"></script><script src="town-visitors.js?v=2"></script><script src="town-rail.js?v=2"></script><script src="town-wishes.js?v=3"></script><script src="town-relations.js?v=2"></script><script src="town-ripples.js?v=4"></script><script src="town-skeptic.js?v=1"></script><script src="town-goals.js?v=2"></script><script src="town-watch.js?v=4"></script><script src="town-twilight.js?v=1"></script><script src="town-paper.js?v=7"></script><script src="town-supply.js?v=3"></script><script src="town-build.js?v=2"></script><script src="town-travel.js?v=1"></script><script src="town-conversations.js?v=2"></script><script src="world.js?v=20"></script><script src="town-homes.js?v=6"></script><script src="town-interiors.js?v=4"></script><script src="town-trade-art.js?v=2"></script><script src="town-art.js?v=9"></script><script src="town-atmosphere.js?v=1"></script><script src="town-camera.js?v=1"></script><script src="town-build-art.js?v=1"></script><script src="town-characters.js?v=1"></script><script src="town-map.js?v=18"></script><script src="town-movement.js?v=14"></script><script src="town-cards.js?v=1"></script><script src="town-music.js?v=1"></script><script src="ui.js?v=24"></script>
+<script src="npc-memory.js"></script><script src="save-manager.js?v=2"></script><script src="town-school.js?v=2"></script><script src="town-stories.js?v=5"></script><script src="town-routines.js?v=16"></script><script src="town-moments.js?v=3"></script><script src="town-visitors.js?v=2"></script><script src="town-rail.js?v=2"></script><script src="town-wishes.js?v=3"></script><script src="town-relations.js?v=2"></script><script src="town-ripples.js?v=4"></script><script src="town-skeptic.js?v=1"></script><script src="town-goals.js?v=2"></script><script src="town-watch.js?v=4"></script><script src="town-twilight.js?v=1"></script><script src="town-paper.js?v=7"></script><script src="town-supply.js?v=3"></script><script src="town-build.js?v=2"></script><script src="town-travel.js?v=1"></script><script src="town-conversations.js?v=2"></script><script src="world.js?v=20"></script><script src="town-homes.js?v=6"></script><script src="town-interiors.js?v=4"></script><script src="town-trade-art.js?v=2"></script><script src="town-art.js?v=9"></script><script src="town-atmosphere.js?v=1"></script><script src="town-camera.js?v=1"></script><script src="town-build-art.js?v=1"></script><script src="town-characters.js?v=1"></script><script src="town-map.js?v=18"></script><script src="town-movement.js?v=14"></script><script src="town-cards.js?v=1"></script><script src="town-music.js?v=1"></script><script src="ui.js?v=25"></script>
 </body></html>

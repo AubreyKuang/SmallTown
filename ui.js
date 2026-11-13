@@ -1,7 +1,7 @@
 'use strict';
 const $=id=>document.getElementById(id);
 const KEY='god-dice-v1';
-const dialogs=['journal','stories','moment','rail','wish','paper','fate','thread','twilight','supply','build','conversation'];
+const dialogs=['journal','stories','moment','rail','paper','fate','thread','twilight','supply','build','conversation'];
 const conversationButtons=new Map();
 const music=TownMusic.create();
 const canvas=$('map'),ctx=canvas.getContext('2d');
@@ -211,6 +211,7 @@ canvas.addEventListener('click',event=>{
   if(guest){openRail(guest.visitor.id);return;}
   if(closest.pin){
     chooseResident(closest.pin.resident.id);
+    $('sideFate').closest('.controls-panel').scrollTop=0;
   }else if(TownTradeArt.hit(x,y)||['bakery','market'].includes(TownMap.findPlace(x,y)))openSupply();
 });
 function when(tick){return `第 ${Math.floor(tick/48)+1} 天 ${String(Math.floor(tick%48/2)).padStart(2,'0')}:${tick%2?'30':'00'}`;}
@@ -449,7 +450,7 @@ function renderRail(){
     const roster=storyNode('ul','','rail-list');
     for(const p of residents){
       const trip=TownTravel.tripFor(world,p),row=storyNode('li','');
-      row.append(storyButton(p.name,()=>{$('rail').close();chooseResident(p.id);openResidentProfile();}),
+      row.append(storyButton(p.name,()=>{$('rail').close();showResidentProfile(p.id);}),
         storyNode('span',` · ${TownTravel.away(p)?'在外地':'已订票'} · ${TownTravel.destination(trip)} · ${when(trip.back)} 回镇`));
       roster.append(row);
     }
@@ -457,35 +458,15 @@ function renderRail(){
   }
   panel.append(storyNode('h3','来镇上的旅客'),guests);
 }
-function renderWish(){
-  const p=selected(),profile=TownWishes.profile(p.id),state=TownWishes.state(world,p.id),panel=$('wishPanel');
+function renderResidentProfile(){
+  const p=selected(),profile=TownWishes.profile(p.id),state=TownWishes.state(world,p.id),panel=$('residentProfileContent');
   const trip=TownTravel.tripFor(world,p);
   const thought=personalThought(p),date=TownRelations.date(world,p);
-  $('wishTitle').textContent=`${p.name} 的人物档案`;
-  function switchResident(id){
-    $('person').value=id;render();$('wishTitle').focus();
-  }
-  const people=storyNode('div','','wish-people');
-  for(const id of [6,8,...TownWishes.ids]){
-    const person=world.people.find(candidate=>candidate.id===id);
-    const button=storyButton(person.name,()=>switchResident(id));
-    button.setAttribute('aria-pressed',String(id===p.id));people.append(button);
-  }
-  const mood=p.mood>=80?'心情很好':p.mood>=55?'心情平稳':p.mood>=40?'有些低落':'很想独处';
+  $('residentProfileTitle').textContent=`${p.name} 的人物档案`;
   const appearance=TownCharacters.appearance(p.id);
-  const identity=storyNode('div','','profile-identity');
-  const portrait=document.createElement('canvas');
-  portrait.width=portrait.height=64;
-  portrait.setAttribute('aria-hidden','true');
-  TownMap.portrait(portrait,p);
-  const about=storyNode('div','');
   const age=TownSchool.student(p)?'学生':'成人';
-  about.append(storyNode('strong',p.name),
-    storyNode('p',`${[appearance.gender,age,appearance.details].filter(Boolean).join(' · ')}`,'story-meta'),
-    storyNode('p',`${residentActivity(p)} · ${mood}（${p.mood}） · ${p.money} 元`,'story-meta'));
-  identity.append(portrait,about);
-  panel.replaceChildren(people,identity,
-    storyNode('p',`「${thought}」`,'wish-thought'));
+  const identity=[appearance.gender,age,appearance.details,`${p.money} 元`].filter(Boolean).join(' · ');
+  panel.replaceChildren(storyNode('p',identity,'story-meta'),storyNode('p',`「${thought}」`,'wish-thought'));
   const following=TownWatch.ids(world).includes(p.id);
   const atLimit=!following&&TownWatch.ids(world).length>=TownWatch.limit;
   const followButton=storyButton(following?`取消关注 ${p.name}`:atLimit?'已关注 2 位居民':`关注 ${p.name}`,()=>{
@@ -498,12 +479,11 @@ function renderWish(){
     `已从${TownTravel.destination(trip)}回镇 · ${TownTravel.keepsake(trip)}`:
     `${TownTravel.away(p)?'不在小镇':`已订车票 · ${when(trip.depart)} 出发`} · ${TownTravel.destination(trip)} · ${when(trip.back)} 返回`,'story-result'));
   if(trip&&!trip.returned&&TownTravel.away(p))panel.append(storyButton('去车站等返程列车',()=>{
-    $('wish').close();
     observeAt(trip.back-1);
     setRunning(true);
   }));
   if(TownTravel.possible(world,p))panel.append(storyButton('安排两天火车旅行',()=>{
-    if(Town.bookTrip(world,p)){save();render();$('wishTitle').focus();}
+    if(Town.bookTrip(world,p)){save();render();$('residentProfileTitle').focus({preventScroll:true});}
   }));
   if(p.homePlot!=null)panel.append(storyNode('p',`住址 · ${TownBuild.plots[p.homePlot].name}`,'story-meta'));
   const current=Town.activity(world,p);
@@ -525,14 +505,15 @@ function renderWish(){
     else if(conflict)block.append(storyNode('p','Owen 得先收摊，可能赶不上约定时间。'));
     if(plan.die)block.append(storyNode('p',`掷出 ${plan.die} 点。${plan.die>=5?'收摊比预期顺利。':plan.die>=3?'能赶在约定结束前收完。':'收摊还是耽搁了。'}`,'story-meta'));
     const actions=storyNode('div','','story-actions');
-    actions.append(storyButton(`查看 ${other.name} 怎么想`,()=>switchResident(other.id)));
+    actions.append(storyButton(`查看 ${other.name} 怎么想`,()=>showResidentProfile(other.id)));
     if(!plan.result&&world.tick<plan.at-1)actions.append(storyButton('前进到见面前半小时',()=>{
       advanceTo(plan.at-1);
-      save();render();panel.querySelector('.resident-section h3').focus();
+      scheduleNext();
+      save();render();panel.querySelector('.resident-section h3').focus({preventScroll:true});
     }));
     if(canNudge)actions.append(storyButton('掷骰争取早点收摊 · 1 次干预',()=>{
       const root=Town.nudgeDate(world,p.id);
-      if(root){watched=root;beep();save();render();panel.querySelector('.resident-section h3').focus();}
+      if(root){watched=root;beep();save();render();panel.querySelector('.resident-section h3').focus({preventScroll:true});}
     },'story-primary'));
     block.append(actions);panel.append(block);
   }
@@ -540,7 +521,7 @@ function renderWish(){
   if(connections.length){
     const people=storyNode('div','','profile-relations');
     for(const {person,label,score,event} of connections){
-      const button=storyButton('',()=>switchResident(person.id));
+      const button=storyButton('',()=>showResidentProfile(person.id));
       const feeling=score>=8?'更信任了':score<0?'有些隔阂':'';
       button.append(storyNode('strong',`${person.name} · ${label}`));
       if(event||feeling)button.append(storyNode('small',[feeling,event?.text].filter(Boolean).join(' · ')));
@@ -573,15 +554,16 @@ function renderWish(){
     panel.append(storyNode('p',`${when(at)} 到 ${when(until).split(' ').at(-1)} · ${place} · 想见 ${other.name}`,'story-meta'));
     if(world.tick<at-1)actions.append(storyButton('前进到机会前半小时',()=>{
       advanceTo(at-1);
-      save();render();panel.querySelector('h3').focus();
+      scheduleNext();
+      save();render();$('residentProfileTitle').focus({preventScroll:true});
     }));
-    actions.append(storyButton(`观察 ${other.name}`,()=>{$('wish').close();chooseResident(other.id);}));
+    actions.append(storyButton(`观察 ${other.name}`,()=>showResidentProfile(other.id)));
   }else{
     const canRoll=TownWishes.canRoll(world,p.id);
     const label=canRoll?'为这件事掷骰 · 1 次干预':world.tokens===0?'今天的干预次数用完了':'明天可以再掷骰';
     const button=storyButton(label,()=>{
       const root=Town.rollWish(world,p.id);
-      if(root){watched=root;beep();save();render();$('wishTitle').focus();}
+      if(root){watched=root;beep();save();render();$('residentProfileTitle').focus({preventScroll:true});}
     },'story-primary');
     button.disabled=!canRoll;actions.append(button);
   }
@@ -782,7 +764,7 @@ function renderWatch(){
     const latest=TownWatch.developments(world.events,id).at(-1);
     const card=storyNode('div','','watch-person');
     card.append(storyButton(`${person.name} 的档案 ›`,()=>{
-      chooseResident(id);openResidentProfile();
+      showResidentProfile(id);
     }));
     if(next){
       const at=next.at<=world.tick?'正在约定时段':when(next.at);
@@ -804,7 +786,6 @@ function render(){
   $('tokens').textContent=`剩余 ${world.tokens}/${Town.dailyTotal(world)} 次`;
   $('tokens').title='每天 3 次起；完成委托，第二天多得，最多 5 次。掷骰、捎灯笺、约时间等每次花 1 次干预。';
   TownMap.portrait($('portrait'),p);
-  $('openWish').setAttribute('aria-label',`查看 ${p.name} 的人物档案`);
   document.querySelectorAll('[data-kind]').forEach(button=>button.disabled=!Town.canAct(world,p,button.dataset.kind));
   if(world.tokens<=0)choosingPlace=false;
   $('redirect').disabled=!Town.canAct(world,p,'visit');
@@ -816,7 +797,15 @@ function render(){
   renderSupply();
   renderBuild();
   if($('moment').open)renderMoment();
-  if($('wish').open)renderWish();
+  const focused=document.activeElement;
+  const profileContent=$('residentProfileContent');
+  const focusedButton=profileContent.contains(focused)&&focused.closest('button');
+  renderResidentProfile();
+  if(focusedButton){
+    const replacement=[...profileContent.querySelectorAll('button')].find(button=>focusedButton.id?
+      button.id===focusedButton.id:button.textContent===focusedButton.textContent);
+    (replacement&&!replacement.disabled?replacement:$('residentProfileTitle')).focus({preventScroll:true});
+  }
   $('mapHint').textContent=choosingPlace?`给 ${p.name} 点一个目的地`:buildingType?'点击编号地块确认施工':'点居民选中 · 点气泡听对话';
   const moment=TownMoments.active(world);
   const latest=world.events.findLast(e=>e.type!=='town');
@@ -974,7 +963,7 @@ function openConversation(chat,people){
   }
   const profiles=storyNode('div','','conversation-profiles');
   for(const p of people){
-    const button=storyButton('',()=>{chooseResident(p.id);openResidentProfile();});
+    const button=storyButton('',()=>{$('conversation').close();showResidentProfile(p.id);});
     const portrait=document.createElement('canvas');
     portrait.width=portrait.height=64;
     portrait.setAttribute('aria-hidden','true');
@@ -988,14 +977,12 @@ function openConversation(chat,people){
   refreshMotion();
 }
 $('closeConversation').onclick=()=>$('conversation').close();
-function openResidentProfile(){
-  renderWish();
-  $('wish').showModal();
-  scheduleNext();
-  refreshMotion();
+function showResidentProfile(id){
+  chooseResident(id);
+  const title=$('residentProfileTitle');
+  title.focus({preventScroll:true});
+  title.scrollIntoView({block:'nearest'});
 }
-$('openWish').onclick=openResidentProfile;
-$('closeWish').onclick=()=>$('wish').close();
 for(const id of dialogs)$(id).addEventListener('close',()=>{scheduleNext();refreshMotion();});
 $('music').onclick=async()=>{
   const button=$('music');
