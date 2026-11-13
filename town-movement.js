@@ -40,7 +40,7 @@ const TownMovement = (() => {
         twilightSeat(resident,place,activity)??pickStop(pool)??pool[resident.id%pool.length];
       const walker={resident,place,x:stop[0],y:stop[1],stop,
         activity:arriving?'alight':activity,pace:(32+random()*14)*(TownSchool.student(resident)?.9:1),
-        wait:random()*1.4,stride:random()*Math.PI*2,cooldown:0};
+        wait:random()*1.4,stride:random()*Math.PI*2,facing:0,cooldown:0};
       const saved=snapshot&&Object.hasOwn(snapshot,resident.id)?snapshot[resident.id]:null;
       if(saved&&onMap(saved.x,saved.y)&&localPlace(saved.place)){
         Object.assign(walker,{x:saved.x,y:saved.y,stop:[saved.x,saved.y],place:saved.place,
@@ -146,6 +146,12 @@ const TownMovement = (() => {
         }
       }
     }
+    function moveAlong(walker,trip){
+      const [x,y]=TownMap.position(trip.path,trip.path.total?trip.traveled/trip.path.total:1);
+      const dx=x-walker.x,dy=y-walker.y;
+      if(Math.abs(dx)+Math.abs(dy)>.0001)walker.facing=Math.abs(dx)>.3*Math.abs(dy)?Math.sign(dx):0;
+      walker.x=x;walker.y=y;
+    }
     function advance(seconds,roam=true){
       sync();
       for(let i=walkers.length-1;i>=0;i--){
@@ -156,7 +162,7 @@ const TownMovement = (() => {
           if(w.journey?.activity!=='trainBoard')start(w,'station','trainBoard');
           const trip=w.journey;
           trip.traveled=Math.min(trip.path.total,trip.traveled+seconds*trip.speed);
-          [w.x,w.y]=TownMap.position(trip.path,trip.path.total?trip.traveled/trip.path.total:1);
+          moveAlong(w,trip);
           w.stride+=seconds*trip.speed*.27;
           if(trip.traveled<trip.path.total)continue;
         }
@@ -202,7 +208,7 @@ const TownMovement = (() => {
         const traveled=Math.min(trip.path.total,trip.traveled+seconds*speed*easing);
         walker.stride+=(traveled-trip.traveled)*.27;
         trip.traveled=traveled;
-        [walker.x,walker.y]=TownMap.position(trip.path,trip.path.total?traveled/trip.path.total:1);
+        moveAlong(walker,trip);
         if(traveled===trip.path.total){
           walker.place=trip.place;
           walker.activity=trip.activity;
@@ -219,6 +225,7 @@ const TownMovement = (() => {
       return walkers.filter(w=>!aboard(w)).map(w=>({resident:w.resident,place:w.place,x:w.x,y:w.y,activity:w.activity,
         indoors:inside(w),social:w.group?.type,conversation:w.group?.conversation,partner:w.group?(w.group.a===w?w.group.b:w.group.a).resident.id:null,
         movingTo:w.journey?.transit?w.journey.place:null,cart:w.journey?.cartStart!=null&&w.journey.traveled>=w.journey.cartStart,
+        facing:w.journey&&w.group?.type!=='talk'?w.facing:0,
         step:w.journey&&w.group?.type!=='talk'?Math.sin(w.stride)*1.6:0}))
         .sort((a,b)=>a.y-b.y);
     }

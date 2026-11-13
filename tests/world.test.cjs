@@ -2,8 +2,8 @@ const assert = require('node:assert/strict');
 const {test} = require('node:test');
 const {readFileSync} = require('node:fs');
 const vm = require('node:vm');
-const source=['npc-memory.js','save-manager.js','town-school.js','town-stories.js','town-routines.js','town-moments.js','town-visitors.js','town-rail.js','town-wishes.js','town-relations.js','town-ripples.js','town-skeptic.js','town-goals.js','town-watch.js','town-twilight.js','town-supply.js','town-paper.js','town-build.js','town-travel.js','town-conversations.js','world.js','town-homes.js','town-interiors.js','town-atmosphere.js','town-map.js','town-movement.js'].map(name=>readFileSync(require('node:path').join(__dirname,'..',name),'utf8')).join('\n');
-const {Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes,TownRelations,TownRipples,TownSkeptic,TownGoals,TownPaper,TownWatch,TownVisitors,TownTwilight,TownAtmosphere,TownSupply,TownBuild,TownTravel,TownConversations}=vm.runInNewContext(source+'\n({Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes,TownRelations,TownRipples,TownSkeptic,TownGoals,TownPaper,TownWatch,TownVisitors,TownTwilight,TownAtmosphere,TownSupply,TownBuild,TownTravel,TownConversations})');
+const source=['npc-memory.js','save-manager.js','town-school.js','town-stories.js','town-routines.js','town-moments.js','town-visitors.js','town-rail.js','town-wishes.js','town-relations.js','town-ripples.js','town-skeptic.js','town-goals.js','town-watch.js','town-twilight.js','town-supply.js','town-paper.js','town-build.js','town-travel.js','town-conversations.js','world.js','town-homes.js','town-interiors.js','town-atmosphere.js','town-characters.js','town-map.js','town-movement.js'].map(name=>readFileSync(require('node:path').join(__dirname,'..',name),'utf8')).join('\n');
+const {Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes,TownRelations,TownRipples,TownSkeptic,TownGoals,TownPaper,TownWatch,TownVisitors,TownTwilight,TownAtmosphere,TownSupply,TownBuild,TownTravel,TownConversations,TownCharacters}=vm.runInNewContext(source+'\n({Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes,TownRelations,TownRipples,TownSkeptic,TownGoals,TownPaper,TownWatch,TownVisitors,TownTwilight,TownAtmosphere,TownSupply,TownBuild,TownTravel,TownConversations,TownCharacters})');
 function to(w,t){while(w.tick<t)Town.step(w);}
 function visualRandom(seed){
   return ()=>{
@@ -938,4 +938,25 @@ test('a misheard story stays attributed to the two residents who discussed it',(
   assert.equal(chat.lines[0].speaker,listener.id);
   assert.match(chat.lines[1].text,/我也是听来的/);
   assert.notEqual(TownConversations.create(w,listener,stranger).source,rumor.id);
+});
+
+
+test('resident designs stay distinct across saves, and named travelers have stable looks',()=>{
+  const w=Town.create(8);
+  const roles=new Set();
+  const visualKeys=new Set();
+  for(let id=1;id<=41;id++){
+    const {gender,hair,cut,cloth,gear,details}=TownCharacters.appearance(id);
+    const key=[hair,cut,cloth,gear].join('/');
+    assert.ok(!visualKeys.has(key),`duplicate design for resident ${id}`);
+    visualKeys.add(key);
+    assert.ok(details);
+    roles.add(gender);
+  }
+  assert.deepEqual([...roles].sort(),['女','男']);
+  const p=JSON.parse(JSON.stringify(w)).people[0];
+  assert.strictEqual(TownCharacters.appearance(p.id),TownCharacters.appearance(w.people[0].id));
+  assert.equal(TownCharacters.appearance(105).gear,'glasses');
+  assert.equal(TownCharacters.appearance(106).gear,'beret');
+  assert.strictEqual(TownCharacters.appearance(124),TownCharacters.appearance(148));
 });

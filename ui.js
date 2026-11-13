@@ -120,8 +120,8 @@ function paintConversations(selection){
       if(!pin.conversation||pin.resident.id>=pin.partner)continue;
       const other=visiblePins.find(candidate=>candidate.resident.id===pin.partner);
       if(!other||!interiors&&(pin.indoors||other.indoors))continue;
-      const labelClearance=selection===pin.resident.id||selection===pin.partner?18:0;
-      const point=camera.screen((pin.x+other.x)/2,Math.min(pin.y,other.y)-26-labelClearance);
+      const labelClearance=selection===pin.resident.id||selection===pin.partner?24:0;
+      const point=camera.screen((pin.x+other.x)/2,Math.min(pin.y,other.y)-29-labelClearance);
       if(point.x<0||point.x>TownCamera.width||point.y<0||point.y>TownCamera.height)continue;
       const chat=pin.conversation,people=[pin.resident,other.resident];
       active.add(chat);
@@ -203,21 +203,14 @@ canvas.addEventListener('click',event=>{
   }
   const closest=visiblePins.reduce((best,pin)=>{
     if(pin.indoors&&!interiors)return best;
-    const distance=Math.hypot(x-pin.x,y-pin.y+4);
+    const distance=Math.hypot(x-pin.x,y-pin.y+7);
     return distance<best.distance?{pin,distance}:best;
   },{pin:null,distance:Math.max(30,TownCamera.width/bounds.width*19)/camera.scale});
-  const talk=closest.pin;
-  const partner=talk?.conversation&&visiblePins.find(pin=>pin.resident.id===talk.partner);
-  if(partner&&(interiors||!partner.indoors)){
-    openConversation(talk.conversation,[talk.resident,partner.resident]);
-    return;
-  }
   const guest=TownRail.passengers(world.tick,tickProgress).find(pin=>
     pin.visitor&&Math.min(Math.hypot(x-pin.x,y-pin.y+4),Math.hypot(x-pin.x,y-pin.y+26))<Math.min(24,closest.distance));
   if(guest){openRail(guest.visitor.id);return;}
   if(closest.pin){
     chooseResident(closest.pin.resident.id);
-    openResidentProfile();
   }else if(TownTradeArt.hit(x,y)||['bakery','market'].includes(TownMap.findPlace(x,y)))openSupply();
 });
 function when(tick){return `第 ${Math.floor(tick/48)+1} 天 ${String(Math.floor(tick%48/2)).padStart(2,'0')}:${tick%2?'30':'00'}`;}
@@ -479,7 +472,19 @@ function renderWish(){
     button.setAttribute('aria-pressed',String(id===p.id));people.append(button);
   }
   const mood=p.mood>=80?'心情很好':p.mood>=55?'心情平稳':p.mood>=40?'有些低落':'很想独处';
-  panel.replaceChildren(people,storyNode('p',`此刻 · ${residentActivity(p)} · ${mood}（${p.mood}） · ${p.money} 元`,'story-meta'),
+  const appearance=TownCharacters.appearance(p.id);
+  const identity=storyNode('div','','profile-identity');
+  const portrait=document.createElement('canvas');
+  portrait.width=portrait.height=64;
+  portrait.setAttribute('aria-hidden','true');
+  TownMap.portrait(portrait,p);
+  const about=storyNode('div','');
+  const age=TownSchool.student(p)?'学生':'成人';
+  about.append(storyNode('strong',p.name),
+    storyNode('p',`${[appearance.gender,age,appearance.details].filter(Boolean).join(' · ')}`,'story-meta'),
+    storyNode('p',`${residentActivity(p)} · ${mood}（${p.mood}） · ${p.money} 元`,'story-meta'));
+  identity.append(portrait,about);
+  panel.replaceChildren(people,identity,
     storyNode('p',`「${thought}」`,'wish-thought'));
   const following=TownWatch.ids(world).includes(p.id);
   const atLimit=!following&&TownWatch.ids(world).length>=TownWatch.limit;
@@ -812,7 +817,7 @@ function render(){
   renderBuild();
   if($('moment').open)renderMoment();
   if($('wish').open)renderWish();
-  $('mapHint').textContent=choosingPlace?`给 ${p.name} 点一个目的地`:buildingType?'点击编号地块确认施工':'点气泡听对话 · 点居民看档案';
+  $('mapHint').textContent=choosingPlace?`给 ${p.name} 点一个目的地`:buildingType?'点击编号地块确认施工':'点居民选中 · 点气泡听对话';
   const moment=TownMoments.active(world);
   const latest=world.events.findLast(e=>e.type!=='town');
   $('mapStory').hidden=!moment;

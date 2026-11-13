@@ -1,14 +1,13 @@
 'use strict';
 
 const TownMap = (() => {
-  const colors = ['#ad554b','#366c87','#548062','#a77337','#68588d','#536b45'];
   const locations = {
     homes:{x:191,y:263,labelY:298}, bakery:{x:430,y:213,labelY:115},
     cafe:{x:574,y:198,labelY:107}, market:{x:768,y:223,labelY:111},
     square:{x:551,y:357,labelY:425}, station:{x:780,y:465,labelY:517},
     forest:{x:228,y:416,labelY:465}, school:{x:718,y:70,labelY:21}, schoolyard:{x:871,y:89,labelY:128}
   };
-  const color = id => colors[(id - 1) % colors.length];
+  const characterBrushes={ellipse,line,polygon};
   const river=[[0,561],[140,514],[279,522],[381,474],[468,482],[574,538],[715,558],[830,572],[960,541]];
   function polygon(ctx,points,fill){
     ctx.beginPath();ctx.moveTo(...points[0]);
@@ -220,21 +219,11 @@ const TownMap = (() => {
     }
     return path.points.at(-1);
   }
-  function figure(ctx,resident,x,y,step=0,scale=1){
-    ctx.save();ctx.translate(x,y);ctx.scale(scale,scale);
-    ellipse(ctx,0,4,7,3,'#33463355');
-    line(ctx,[[-2,2],[-2+step,6]],'#3c3c32',2);
-    line(ctx,[[2,2],[2-step,6]],'#3c3c32',2);
-    ellipse(ctx,0,0,5,5,color(resident.id));
-    ellipse(ctx,0,-6,4.2,4.6,'#f4c695');
-    ellipse(ctx,0,-8,4.5,2.8,['#48352b','#644032','#a5683a'][resident.id%3]);
-    ctx.restore();
-  }
   function portrait(canvas,resident){
     const ctx=canvas.getContext('2d');
     ctx.clearRect(0,0,64,64);
-    ellipse(ctx,32,32,25,25,'#f6e7b9');
-    figure(ctx,resident,32,38,0,2.65);
+    ellipse(ctx,32,32,27,27,'#f6e7b9');
+    TownCharacters.draw(ctx,resident.id,32,43,{scale:2.35},characterBrushes);
   }
   function findPlace(x,y,world){
     if(world&&TownBuild.buildings(world).some(b=>b.finished&&TownBuild.hit(x,y,b.plot,b.type)))return 'homes';
@@ -289,25 +278,27 @@ const TownMap = (() => {
     for(const traveler of TownRail.passengers(world.tick,progress)){
       const {id,x,y,phase,visitor}=traveler;
       const walking=['alight','walk','board'].includes(phase);
-      figure(ctx,{id},x,y,walking?Math.sin(time/110+id)*1.4:0,1.1);
-      ctx.fillStyle='#96684e';ctx.fillRect(x+4,y+1,3.5,4);
-      line(ctx,[[x+4.6,y+1],[x+4.6,y],[x+6.2,y]],'#6a4e3b',.8);
+      TownCharacters.draw(ctx,id,x,y,{step:walking?Math.sin(time/110+id)*1.4:0,scale:1.1},characterBrushes);
+      ctx.fillStyle='#96684e';ctx.fillRect(x+7,y+1,3.5,4);
+      line(ctx,[[x+7.6,y+1],[x+7.6,y],[x+9.2,y]],'#6a4e3b',.8);
       if(visitor){
         ctx.font=`600 ${13*labelScale}px system-ui, sans-serif`;
         ctx.textAlign='center';ctx.textBaseline='middle';
         const w=ctx.measureText(visitor.name).width+12;
-        ctx.beginPath();ctx.roundRect(x-w/2,y-16-17*labelScale,w,17*labelScale,4);
+        ctx.beginPath();ctx.roundRect(x-w/2,y-21-17*labelScale,w,17*labelScale,4);
         ctx.fillStyle='#63462e';ctx.fill();
-        ctx.fillStyle='#fff3d6';ctx.fillText(visitor.name,x,y-16-8.5*labelScale);
+        ctx.fillStyle='#fff3d6';ctx.fillText(visitor.name,x,y-21-8.5*labelScale);
       }
     }
-    for(const {resident,x,y,step,indoors,activity,social,partner} of pins){
+    for(const {resident,x,y,step,facing,indoors,activity,social} of pins){
       if(indoors&&!interiors)continue;
       if(resident.id===selection)ellipse(ctx,x,y+3,indoors?9:13,indoors?5:7,'#f9d17a');
       if(social==='walk')ellipse(ctx,x,y+3,10,5,'#b7e1ca99');
-      if(indoors&&activity==='sleep'&&!step){
-        ellipse(ctx,x+2,y+1,5,3,color(resident.id));ellipse(ctx,x-3,y,2.6,2.6,'#f4c695');
-      }else figure(ctx,resident,x,y,step,(indoors?1:1.35)*(TownSchool.student(resident)?.8:1));
+      TownCharacters.draw(ctx,resident.id,x,y,{
+        step,facing,scale:(indoors?1:1.28)*(TownSchool.student(resident)?.8:1),
+        sleeping:indoors&&activity==='sleep'&&!step,
+        working:resident.job==='bakery'&&['work','breadBake'].includes(activity)
+      },characterBrushes);
       if(activity==='stars')ellipse(ctx,x+8,y-1,3,3,'#fff0a4');
     }
     TownAtmosphere.particles(ctx,world,time,light,{ellipse,line});
@@ -324,8 +315,8 @@ const TownMap = (() => {
     if(active){
       ctx.font=`700 ${13*labelScale}px system-ui, sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';
       const w=ctx.measureText(active.resident.name).width+18;
-      ctx.beginPath();ctx.roundRect(active.x-w/2,active.y-21-10*labelScale,w,19*labelScale,5);ctx.fillStyle='#344b3b';ctx.fill();
-      ctx.fillStyle='#fff4d4';ctx.fillText(active.resident.name,active.x,active.y-21);
+      ctx.beginPath();ctx.roundRect(active.x-w/2,active.y-28-10*labelScale,w,19*labelScale,5);ctx.fillStyle='#344b3b';ctx.fill();
+      ctx.fillStyle='#fff4d4';ctx.fillText(active.resident.name,active.x,active.y-28);
     }
     return pins;
   }
