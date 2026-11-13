@@ -12,11 +12,11 @@ const TownSchool=(()=>{
     {id:teacher,name:'Marin',family:10,job:'school',habit:'cafe',temperament:'generous'},
     ...pupils.map(p=>({...p,job:'school',habit:'schoolyard',temperament:'practical'}))
   ];
-  const student=p=>p.id>=26;
+  const student=p=>pupils.some(child=>child.id===p.id);
   const household=id=>roster.find(p=>p.id===id)?.family??id;
   const at=(place,activity)=>({place,activity});
   function routine(w,p){
-    if(p.id<teacher)return;
+    if(p.id!==teacher&&!student(p))return;
     const hour=w.tick%48,day=Math.floor(w.tick/48);
     const weekend=day%7>=5,clear=w.weather==='晴朗';
     if(p.id===teacher){

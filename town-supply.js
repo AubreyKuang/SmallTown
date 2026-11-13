@@ -104,6 +104,13 @@ const TownSupply=(()=>{
     run.helpEvent=log(`你让 ${person.name} 搭把手，面粉可以更早送到。`,null,'supply-intervene',[id]);
     return run.helpEvent;
   }
+  const funds=w=>w.supply?.coins??initialCoins;
+  function spend(w,amount){
+    if(funds(w)<amount)return false;
+    const state=w.supply??=make();
+    state.coins-=amount;
+    return true;
+  }
   function build(w){
     const state=w.supply??=make();
     if(state.depot==='station'||state.nextDepot||state.coins<depots.station.cost)return false;
@@ -155,5 +162,5 @@ const TownSupply=(()=>{
     const run=current(w);
     return run?.helpEvent===root&&['unload','inbound','oven-wait'].includes(run.stage);
   };
-  return {pendingHelp,demand,arrival,close,initialCoins,depots,dayStart,current,stage,step,helper,assist,build,cargo,assignment,valid};
+  return {funds,spend,pendingHelp,demand,arrival,close,initialCoins,depots,dayStart,current,stage,step,helper,assist,build,cargo,assignment,valid};
 })();

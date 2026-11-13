@@ -2,8 +2,8 @@ const assert = require('node:assert/strict');
 const {test} = require('node:test');
 const {readFileSync} = require('node:fs');
 const vm = require('node:vm');
-const source=['npc-memory.js','save-manager.js','town-school.js','town-stories.js','town-routines.js','town-moments.js','town-visitors.js','town-rail.js','town-wishes.js','town-relations.js','town-ripples.js','town-skeptic.js','town-goals.js','town-watch.js','town-twilight.js','town-supply.js','town-paper.js','world.js','town-homes.js','town-interiors.js','town-atmosphere.js','town-map.js','town-movement.js'].map(name=>readFileSync(require('node:path').join(__dirname,'..',name),'utf8')).join('\n');
-const {Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes,TownRelations,TownRipples,TownSkeptic,TownGoals,TownPaper,TownWatch,TownVisitors,TownTwilight,TownAtmosphere,TownSupply}=vm.runInNewContext(source+'\n({Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes,TownRelations,TownRipples,TownSkeptic,TownGoals,TownPaper,TownWatch,TownVisitors,TownTwilight,TownAtmosphere,TownSupply})');
+const source=['npc-memory.js','save-manager.js','town-school.js','town-stories.js','town-routines.js','town-moments.js','town-visitors.js','town-rail.js','town-wishes.js','town-relations.js','town-ripples.js','town-skeptic.js','town-goals.js','town-watch.js','town-twilight.js','town-supply.js','town-paper.js','town-build.js','world.js','town-homes.js','town-interiors.js','town-atmosphere.js','town-map.js','town-movement.js'].map(name=>readFileSync(require('node:path').join(__dirname,'..',name),'utf8')).join('\n');
+const {Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes,TownRelations,TownRipples,TownSkeptic,TownGoals,TownPaper,TownWatch,TownVisitors,TownTwilight,TownAtmosphere,TownSupply,TownBuild}=vm.runInNewContext(source+'\n({Town,SaveManager,NPCMemory,TownMap,TownMovement,TownStories,TownRoutines,TownHomes,TownSchool,TownMoments,TownInteriors,TownRail,TownWishes,TownRelations,TownRipples,TownSkeptic,TownGoals,TownPaper,TownWatch,TownVisitors,TownTwilight,TownAtmosphere,TownSupply,TownBuild})');
 function to(w,t){while(w.tick<t)Town.step(w);}
 function visualRandom(seed){
   return ()=>{
@@ -697,4 +697,52 @@ test('rain can cause a shortfall, while help or a shorter route can fill the ord
   to(resumed,84);
   assert.equal(TownSupply.stage(resumed),'served');
   assert.ok(resumed.papers[0].sections.some(s=>s.label==='面包坊与商街'));
+});
+
+test('housing reserves a plot once, persists a pending build, and adds adults with their own home route',()=>{
+  const w=Town.create(8);to(w,17);
+  assert.equal(Town.placeBuilding(w,99,'cottage'),false);
+  assert.equal(Town.placeBuilding(w,4,'duplex'),false);
+  assert.equal(Town.placeBuilding(w,4,'cottage'),true);
+  assert.equal(Town.placeBuilding(w,4,'cottage'),false);
+  assert.equal(TownSupply.funds(w),2);
+  const loaded=JSON.parse(JSON.stringify(w));
+  assert.ok(Town.valid(loaded));
+  to(loaded,21);
+  assert.equal(loaded.construction[0].finished,true);
+  assert.equal(loaded.people.length,29);
+  to(loaded,66);
+  const newcomer=loaded.people.find(p=>p.homePlot===4);
+  assert.equal(newcomer.name,'Ina');
+  assert.equal(newcomer.place,'station');
+  assert.equal(newcomer.activity,'moveIn');
+  assert.equal(TownSchool.student(newcomer),false);
+  assert.ok(Town.valid(loaded));
+  assert.equal(Town.upgrade(loaded).people.length,30);
+  assert.equal(loaded.events.filter(e=>e.type==='build-move-in').length,1);
+  to(loaded,96);
+  const pin=TownMovement.create(loaded,visualRandom(3)).pins().find(p=>p.resident.id===newcomer.id);
+  assert.ok(pin.indoors);
+  assert.equal(pin.place,'homes');
+  assert.ok(Math.abs(pin.x-TownBuild.plots[4].x)<=20);
+  const route=TownMap.route(pin,{place:'market',x:770,y:246});
+  assert.ok(route.some(([x,y])=>x===806&&y===362));
+  assert.ok(!route.some(([x])=>x<600));
+  assert.equal(TownMap.findPlace(826,340,loaded),'homes');
+});
+
+test('a duplex shares the economy, houses two distinct adults, and rejects inconsistent saves',()=>{
+  const w=Town.create(8);to(w,36);
+  assert.equal(TownSupply.funds(w),16);
+  assert.equal(Town.placeBuilding(w,1,'duplex'),true);
+  assert.equal(TownSupply.funds(w),4);
+  assert.equal(TownSupply.build(w),false);
+  to(w,66);
+  const newResidents=w.people.filter(p=>p.homePlot===1);
+  assert.equal(newResidents.length,2);
+  assert.ok(newResidents.every(p=>!TownSchool.student(p)));
+  assert.ok(Town.valid(w));
+  const bad=JSON.parse(JSON.stringify(w));
+  bad.people.at(-1).homePlot=2;
+  assert.equal(Town.valid(bad),false);
 });

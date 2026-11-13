@@ -121,3 +121,10 @@ dialog{width:min(760px,calc(100% - 24px));max-height:88vh;border:1px solid var(-
 .supply-chain [aria-current=step]{background:#dce9cc;color:#344c36;font-weight:700}
 @media(min-width:900px) and (min-height:500px){.controls-panel>.supply-entry{order:-2}}
 @media(max-width:530px){.map-camera{right:6px;bottom:6px}.map-camera button{min-width:41px;min-height:40px}}
+
+.build-placement{display:grid;gap:7px;background:#edf0d8;padding:10px 12px;border-bottom:1px solid #d4c9a5}
+.build-choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}
+.build-choices button{padding:4px 6px;font-size:12px}
+.build-list{display:grid;gap:5px;padding:0;list-style:none}
+.build-list li{padding:6px 9px;background:#eee7cf;border-radius:6px;font-size:13px}
+@media(min-width:900px) and (min-height:500px){.controls-panel>.build-placement{order:-2}}

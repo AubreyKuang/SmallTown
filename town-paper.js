@@ -109,6 +109,8 @@ const TownPaper=(()=>{
     const relation=relationLine(w,s,events);if(relation)sections.push({label:'关系变化',text:relation});
     const twilight=events.find(e=>e.type==='twilight-meet');
     if(twilight)sections.push({label:'河畔灯笺',text:twilight.text});
+    const settlement=events.filter(e=>e.type==='build-move-in'||e.type==='build-ready');
+    if(settlement.length)sections.push({label:'小镇建设',text:settlement.map(e=>e.text).join('\n')});
     const supply=events.find(e=>e.type==='supply-close');
     if(supply)sections.push({label:'面包坊与商街',text:supply.text});
     const followed=TownWatch.daily(w,events);

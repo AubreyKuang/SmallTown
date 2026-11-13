@@ -22,7 +22,14 @@ const TownHomes=(()=>{
     const {left,width,floor}=room(id);
     return [id,{bed:[[left+16,floor-14]],desk:[[left+width-7,floor-13]],rest:[[left+13,floor-12],[left+9,floor-13]]}];
   }));
-  function stops(id,activity){
+  function stops(id,activity,homePlot){
+    if(homePlot!=null){
+      const {x,y}=TownBuild.plots[homePlot];
+      const side=(id-30)%2===0?-1:1;
+      const seat=x+side*10;
+      if(activity==='sleep')return [[seat,y-14]];
+      return [[seat,y-7],[seat+side*3,y-10]];
+    }
     if(shared.has(id)){
       const space=shared.get(id);
       return activity==='sleep'?space.bed:['read','homework'].includes(activity)?space.desk:space.rest;
@@ -33,9 +40,14 @@ const TownHomes=(()=>{
     if(['breakfast','cook','lunch'].includes(activity))return space.food;
     return space.rest;
   }
-  const contains=(id,x,y)=>inside(house(id),x,y);
+  const contains=(id,x,y,homePlot)=>{
+    if(homePlot==null)return inside(house(id),x,y);
+    const plot=TownBuild.plots[homePlot];
+    return Math.abs(x-plot.x)<=20&&y>=plot.y-30&&y<=plot.y;
+  };
   const hit=(x,y)=>buildings.some(building=>inside(building,x,y));
-  function approach(id){
+  function approach(id,homePlot){
+    if(homePlot!=null)return TownBuild.plots[homePlot].path.slice().reverse();
     const b=house(id);
     return [...b.path].reverse();
   }

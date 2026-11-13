@@ -9,7 +9,7 @@ const Town = (() => {
   const residentDefaults={place:'homes',money:20,mood:65,suspicion:0,override:null,delay:0};
   const population=names.length+TownSchool.roster.length;
   function upgrade(w){
-    if(w.people.length===population)return w;
+    if(w.people.length!==names.length)return w;
     for(const {id,name,job,habit,temperament} of TownSchool.roster){
       const p={...residentDefaults,id,name,job,habit,temperament,trust:{}};
       Object.assign(p,schedule(w,p));
@@ -73,6 +73,10 @@ const Town = (() => {
   function schedule(w,p) {
     const h=w.tick%48/2;
     if(p.override?.until>w.tick)return {place:p.override.place,activity:p.override.place==='station'&&p.override.bus?'commute':'visit'};
+    const home=p.homePlot==null?null:TownBuild.house(w,p.homePlot);
+    if(home&&w.tick>=home.moveIn&&w.tick<home.moveIn+4){
+      return w.tick<home.moveIn+2?{place:'station',activity:'moveIn'}:{place:'homes',activity:'rest'};
+    }
     const project=TownStories.destination(w,p);
     if(project)return {place:project,activity:'project'};
     const meetup=TownMoments.destination(w,p);
@@ -89,7 +93,7 @@ const Town = (() => {
     return planned.place===p.place?planned.activity:p.place==='homes'?'rest':p.job===p.place?'work':'visit';
   }
   const canAct=(w,p,kind)=>w.tokens>0&&
-    (kind!=='delay'||p.id<TownSchool.teacher&&TownRoutines.canDelay(w,p))&&
+    (kind!=='delay'||p.id!==TownSchool.teacher&&!TownSchool.student(p)&&TownRoutines.canDelay(w,p))&&
     (!TownSchool.student(p)||!['bus','lottery'].includes(kind));
   // Today's intervention budget: 3 base, plus up to 2 earned from yesterday's finished requests.
   const dailyTotal=w=>3+(w.goals?.bonus??0);
@@ -199,6 +203,11 @@ const Town = (() => {
       log(w,'小镇停电，有些居民准备带着手电去广场看星星。',null,'blackout');
     }
     if(hour===44&&w.power){w.power=false;log(w,'街灯重新亮了起来。');}
+    TownBuild.step(w,(...args)=>log(w,...args),data=>{
+      const resident={...residentDefaults,...data,trust:{}};
+      w.people.push(resident);
+      return resident;
+    });
     TownRelations.prepare(w);
     for(const p of w.people){
       Object.assign(p,schedule(w,p));
@@ -226,7 +235,9 @@ const Town = (() => {
     return w;
   }
   const valid=w=>Number.isInteger(w.tick)&&w.tick>=0&&Number.isInteger(w.seed)&&Array.isArray(w.events)
-    &&Array.isArray(w.people)&&[names.length,population].includes(w.people.length)&&w.people.every(p=>Number.isInteger(p.id)&&p.id>0&&p.id<=w.people.length&&Object.hasOwn(places,p.place))
+    &&Array.isArray(w.people)&&w.people.every(p=>p&&Number.isInteger(p.id)&&p.id>0&&Object.hasOwn(places,p.place))
+    &&([names.length,population].includes(w.people.length)&&w.people.every(p=>p.id<=w.people.length)||
+      w.people.length>population&&w.people.filter(p=>p.id<=population).length===population)&&TownBuild.valid(w,population)
     &&new Set(w.people.map(p=>p.id)).size===w.people.length
     &&w.people.every(p=>Object.hasOwn(places,p.job)&&Object.hasOwn(places,p.habit)&&p.trust&&typeof p.trust==='object')
     &&Array.isArray(w.pending)&&w.pending.every(p=>['late','help','meeting','loan'].includes(p.kind)&&w.people.some(person=>person.id===p.person))
@@ -251,5 +262,6 @@ const Town = (() => {
   const forecastPlan=(w,p,tick)=>schedule({...w,tick,power:tick-w.tick<4&&w.power},p);
   const forecast=(w,p,tick)=>forecastPlan(w,p,tick).place;
   const assistSupply=(w,id)=>TownSupply.assist(w,id,(...args)=>log(w,...args));
-  return {assistSupply,create,step,influence,places,valid,migrate,startStory,inviteStory,forecast,forecastPlan,activity,canAct,dailyTotal,upgrade,chooseMoment,roadTalk,rollWish,nudgeDate,inviteTwilight};
+  const placeBuilding=(w,plot,type)=>TownBuild.place(w,plot,type,(...args)=>log(w,...args));
+  return {placeBuilding,assistSupply,create,step,influence,places,valid,migrate,startStory,inviteStory,forecast,forecastPlan,activity,canAct,dailyTotal,upgrade,chooseMoment,roadTalk,rollWish,nudgeDate,inviteTwilight};
 })();

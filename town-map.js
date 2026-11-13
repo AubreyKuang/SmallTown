@@ -156,7 +156,7 @@ const TownMap = (() => {
     schoolyard:{junction:4,walk:[[683,242],[682,146],[708,112],[781,107],[827,111]]}
   };
   function approach(pin,resident){
-    if(pin.place==='homes')return TownHomes.approach(resident.id);
+    if(pin.place==='homes')return TownHomes.approach(resident.id,resident.homePlot);
     const walk=entrances[pin.place].walk;
     if(TownInteriors.contains(pin.place,pin.x,pin.y))return [...walk,...TownInteriors.entry(pin.place)];
     if(pin.place==='station'&&pin.x<715)return walk.slice(0,2);
@@ -168,6 +168,9 @@ const TownMap = (() => {
     if(start>end)points.reverse();
     return points.map(([x,y])=>[x,y+lane]);
   }
+  function junction(place,resident){
+    return place==='homes'&&resident.homePlot!=null?TownBuild.plots[resident.homePlot].junction:entrances[place].junction;
+  }
   function route(from,to){
     const a=entrances[from.place],b=entrances[to.place];
     const start=[from.x,from.y],end=[to.x,to.y];
@@ -177,12 +180,13 @@ const TownMap = (() => {
     if(a===b)return fromInside===toInside?[start,end]:[start,...exit,...enter,end];
     if(['school','schoolyard'].includes(from.place)&&['school','schoolyard'].includes(to.place))return [start,...exit,[790,105],...enter,end];
     const lane=(from.resident.id%5-2)*3;
-    return [start,...approach(from,from.resident).slice().reverse(),...streetBetween(a.junction,b.junction,lane),...approach(to,from.resident),end];
+    return [start,...approach(from,from.resident).slice().reverse(),...streetBetween(junction(from.place,from.resident),junction(to.place,from.resident),lane),...approach(to,from.resident),end];
   }
   function reroute(walker,to,trip){
     const {points,lengths}=trip.path;
     const start=[walker.x,walker.y],end=[to.x,to.y];
     const lane=(walker.resident.id%5-2)*3;
+    const junctionForTarget=junction(to.place,walker.resident);
     let distance=0,segment=0,best;
     for(let i=0;i<lengths.length&&distance+lengths[i]<=trip.traveled;i++){
       distance+=lengths[i];segment=i+1;
@@ -191,7 +195,7 @@ const TownMap = (() => {
       const junction=street.findIndex(([sx,sy])=>x===sx&&y===sy+lane);
       if(junction<0)continue;
       const entry=i<=segment?points.slice(i,segment+1).reverse():points.slice(segment+1,i+1);
-      const path=plan([start,...entry,...streetBetween(junction,entrances[to.place].junction,lane).slice(1),
+      const path=plan([start,...entry,...streetBetween(junction,junctionForTarget,lane).slice(1),
         ...approach(to,walker.resident),end]);
       if(!best||path.total<best.total)best=path;
     }
@@ -238,7 +242,8 @@ const TownMap = (() => {
     ellipse(ctx,32,32,25,25,'#f6e7b9');
     figure(ctx,resident,32,38,0,2.65);
   }
-  function findPlace(x,y){
+  function findPlace(x,y,world){
+    if(world&&TownBuild.buildings(world).some(b=>b.finished&&TownBuild.hit(x,y,b.plot,b.type)))return 'homes';
     if(TownHomes.hit(x,y))return 'homes';
     return Object.entries(locations).find(([,p])=>Math.hypot(x-p.x,y-p.y)<47||Math.abs(x-p.x)<53&&Math.abs(y-p.labelY)<20)?.[0];
   }
@@ -277,12 +282,13 @@ const TownMap = (() => {
       ctx.restore();
     }
   }
-  function draw(ctx,world,selection,displayWidth,pins,choosingPlace,interiors,time=0,progress=0,cargo=null){
+  function draw(ctx,world,selection,displayWidth,pins,choosingPlace,interiors,time=0,progress=0,cargo=null,buildingType=null){
     const labelScale=Math.min(1.8,Math.max(1,640/displayWidth));
     const light=TownAtmosphere.light(world.tick,progress);
     const night=light.night>.44;
     ctx.drawImage(background(night&&!world.power,interiors),0,0,960,620);
     TownArt.keepsakes(ctx,world.keepsakes??[],night,{polygon,ellipse,line},interiors);
+    TownBuildArt.draw(ctx,world,interiors,night&&!world.power,{polygon,ellipse,line});
     TownAtmosphere.scenery(ctx,world,time,light,river,interiors,{ellipse,line});
     rollingStock(ctx,TownRail.train(world.tick,progress));
     TownTradeArt.trade(ctx,world,cargo,time,{polygon,ellipse,line},interiors);
@@ -311,6 +317,7 @@ const TownMap = (() => {
       if(activity==='stars')ellipse(ctx,x+8,y-1,3,3,'#fff0a4');
     }
     TownAtmosphere.particles(ctx,world,time,light,{ellipse,line});
+    if(buildingType)TownBuildArt.mark(ctx,world,buildingType,{polygon,line});
     for(const [id,{x,labelY}] of Object.entries(locations)){
       if(!choosingPlace&&displayWidth>1250&&['homes','forest','schoolyard'].includes(id))continue;
       const text=Town.places[id].name;

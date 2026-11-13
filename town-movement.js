@@ -29,7 +29,7 @@ const TownMovement = (() => {
     for(const resident of world.people){
       const activity=Town.activity(world,resident);
       const pool=publicStops(resident.place,activity);
-      const stop=resident.place==='homes'?TownHomes.stops(resident.id,activity)[0]:
+      const stop=resident.place==='homes'?TownHomes.stops(resident.id,activity,resident.homePlot)[0]:
         twilightSeat(resident,resident.place,activity)??pickStop(pool)??pool[resident.id%pool.length];
       walkers.push({resident,place:resident.place,x:stop[0],y:stop[1],stop,
         activity,pace:(32+random()*14)*(TownSchool.student(resident)?.9:1),wait:random()*1.4,
@@ -40,7 +40,7 @@ const TownMovement = (() => {
       const previous=walker.journey;
       const local=!previous?.transit&&place===walker.place;
       const home=place==='homes';
-      const points=home?TownHomes.stops(walker.resident.id,activity):publicStops(place,activity);
+      const points=home?TownHomes.stops(walker.resident.id,activity,walker.resident.homePlot):publicStops(place,activity);
       const sameArea=TownInteriors.uses(place,activity)===TownInteriors.contains(place,walker.x,walker.y);
       const stop=home?points[Math.floor(random()*points.length)]:twilightSeat(walker.resident,place,activity)??pickStop(points,walker,local&&sameArea);
       if(stop===walker.stop&&local&&sameArea){walker.wait=.45+random()*.8;return;}
@@ -53,7 +53,7 @@ const TownMovement = (() => {
       walker.journey={path,place,activity,traveled:0,speed,transit:!local};
     }
 
-    const atHome=w=>(w.place==='homes'||w.journey?.place==='homes')&&TownHomes.contains(w.resident.id,w.x,w.y);
+    const atHome=w=>(w.place==='homes'||w.journey?.place==='homes')&&TownHomes.contains(w.resident.id,w.x,w.y,w.resident.homePlot);
     const inside=w=>atHome(w)||TownInteriors.contains(w.place,w.x,w.y)||TownInteriors.contains(w.journey?.place,w.x,w.y);
     function heading(w){
       const trip=w.journey;

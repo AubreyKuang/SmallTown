@@ -38,6 +38,7 @@ let pulses=[],pulseSeq=world.sequence,fateTab='quests',paperIndex=0,threadRoot=n
 let autoPaper=localStorage.getItem(KEY+':paper')!=='off';
 let skippedPaperDay=null;
 let visiblePins=mapPins;
+let buildingType=null;
 const camera=TownCamera.create();
 const cameraInput=TownCamera.bind(canvas,camera,updateCamera);
 const selected=()=>world.people.find(p=>p.id===Number($('person').value))||world.people[0];
@@ -104,7 +105,7 @@ function paint(){
   const sx=canvas.width/TownCamera.width,sy=canvas.height/TownCamera.height;
   ctx.save();
   ctx.setTransform(sx*camera.scale,0,0,sy*camera.scale,sx*camera.x,sy*camera.y);
-  TownMap.draw(ctx,world,p.id,canvas.clientWidth*camera.scale,visiblePins,choosingPlace,interiors,animationTime,progress,cargo);
+  TownMap.draw(ctx,world,p.id,canvas.clientWidth*camera.scale,visiblePins,choosingPlace,interiors,animationTime,progress,cargo,buildingType);
   drawPulses();
   ctx.restore();
 }
@@ -114,6 +115,7 @@ function createCrowd(){
   });
 }
 function resetCrowd(){
+  if($('person').options.length!==world.people.length)populateResidents();
   crowd=createCrowd();
   mapPins=crowd.pins();
   tickProgress=0;
@@ -140,7 +142,7 @@ function animate(now){
 function positionMapLinks(){
   for(const [id,x,y] of [['openSchool',646,97],['openRail',822,363]]){
     const point=camera.screen(x,y),button=$(id);
-    button.hidden=choosingPlace||point.x<58||point.x>TownCamera.width-58||point.y<14||point.y>TownCamera.height-62;
+    button.hidden=choosingPlace||!!buildingType||point.x<58||point.x>TownCamera.width-58||point.y<14||point.y>TownCamera.height-62;
     button.style.left=`${point.x/TownCamera.width*100}%`;
     button.style.top=`${point.y/TownCamera.height*100}%`;
   }
@@ -157,8 +159,9 @@ canvas.addEventListener('click',event=>{
   const bounds=canvas.getBoundingClientRect();
   const point=cameraInput.point(event);
   const {x,y}=camera.world(point.x,point.y);
+  if(buildingType){placeBuilding(TownBuild.plotAt(x,y,buildingType));return;}
   if(choosingPlace){
-    const place=TownMap.findPlace(x,y);
+    const place=TownMap.findPlace(x,y,world);
     if(place)intervene('visit',place);
     return;
   }
@@ -177,7 +180,7 @@ canvas.addEventListener('click',event=>{
   }else if(TownTradeArt.hit(x,y)||['bakery','market'].includes(TownMap.findPlace(x,y)))openSupply();
 });
 function when(tick){return `第 ${Math.floor(tick/48)+1} 天 ${String(Math.floor(tick%48/2)).padStart(2,'0')}:${tick%2?'30':'00'}`;}
-const modalOpen=()=>['journal','stories','moment','rail','wish','paper','fate','thread','twilight','supply'].some(id=>$(id).open);
+const modalOpen=()=>['journal','stories','moment','rail','wish','paper','fate','thread','twilight','supply','build'].some(id=>$(id).open);
 function storyNode(tag,value,css){
   const node=document.createElement(tag);
   node.textContent=value;
@@ -201,6 +204,63 @@ function observeAt(at){
 }
 const supplyLabels={waiting:'等早班列车',unload:'站台等人卸货',inbound:'推车送面粉', 'oven-wait':'等面包师到店',
   baking:'炉里正在烤',pickup:'面包出炉，等人来搬',outbound:'推车去商街',market:'商街开卖',served:'今天的订单都卖完了',short:'收市，面包还不够',closed:'今日已收市'};
+function placeBuilding(plot){
+  if(!buildingType||!Town.placeBuilding(world,plot,buildingType))return;
+  buildingType=null;
+  save();render();
+  showToast('已开工',`${TownBuild.plots[plot].name}已立起脚手架。`);
+  $('openBuild').focus({preventScroll:true});
+}
+function renderBuild(){
+  const funds=TownSupply.funds(world),buildings=TownBuild.buildings(world);
+  const entry=$('openBuild'),panel=$('buildPanel'),placement=$('buildPlacement');
+  entry.replaceChildren(storyNode('strong','小镇建设'),
+    storyNode('small',`${world.people.length} 位居民 · 工坊公款 ${funds} 元`));
+  placement.hidden=!buildingType;
+  if(buildingType){
+    const type=TownBuild.types[buildingType];
+    const choices=storyNode('div','','build-choices');
+    for(const [plot,site] of TownBuild.plots.entries()){
+      const button=storyButton(`${plot+1} · ${site.name}`,()=>placeBuilding(plot));
+      button.disabled=!TownBuild.canPlace(world,plot,buildingType);
+      choices.append(button);
+    }
+    placement.replaceChildren(storyNode('strong',`放置${type.name} · ${type.cost} 元`),
+      storyNode('p','点击地图高亮地块，也可从列表选址。','story-meta'),choices,
+      storyButton('取消放置',()=>{buildingType=null;render();entry.focus();}));
+  }
+  if(!$('build').open)return;
+  const choices=storyNode('div','','story-choices');
+  const available=buildings.length<TownBuild.plots.length;
+  for(const [key,type] of Object.entries(TownBuild.types)){
+    const button=storyButton('',()=>{
+      choosingPlace=false;buildingType=key;
+      $('build').close();
+      camera.reset();render();
+      canvas.focus({preventScroll:true});
+      canvas.scrollIntoView({block:'nearest'});
+    });
+    button.disabled=!available||funds<type.cost;
+    button.append(storyNode('strong',type.name),
+      storyNode('small',`${type.cost} 元 · ${type.capacity} 位住户 · 施工 ${type.duration/2} 小时`));
+    choices.append(button);
+  }
+  const list=storyNode('ul','','build-list');
+  for(const b of buildings){
+    const names=world.people.filter(p=>p.homePlot===b.plot).map(p=>p.name);
+    const status=b.movedIn?`已入住 · ${names.join('、')}`:b.finished?`已完工 · ${when(b.moveIn)} 入住`:
+      `${when(b.ready)} 竣工 · ${when(b.moveIn)} 入住`;
+    list.append(storyNode('li',`${TownBuild.plots[b.plot].name} · ${TownBuild.types[b.type].name} · ${status}`));
+  }
+  const nodes=[storyNode('p',`工坊公款 ${funds} 元 · 剩余地块 ${TownBuild.plots.length-buildings.length} 块`),
+    storyNode('p','面包收入进入公款。住宅完工后，新住户搭接下来第一班早班车抵达。','story-meta'),choices];
+  if(list.childElementCount)nodes.push(storyNode('h3','已选地块'),list);
+  const next=buildings.filter(b=>!b.movedIn).sort((a,b)=>a.moveIn-b.moveIn)[0];
+  if(next)nodes.push(storyButton('到新住户抵达时',()=>{
+    $('build').close();observeAt(next.moveIn);
+  },'story-primary'));
+  panel.replaceChildren(...nodes);
+}
 function renderSupply(){
   const entry=$('openSupply'),panel=$('supplyPanel'),stage=TownSupply.stage(world);
   const run=TownSupply.current(world),state=world.supply;
@@ -365,6 +425,7 @@ function renderWish(){
   followButton.id='followResident';followButton.disabled=atLimit;
   const followActions=storyNode('div','','story-actions');
   followActions.append(followButton);panel.append(followActions);
+  if(p.homePlot!=null)panel.append(storyNode('p',`住址 · ${TownBuild.plots[p.homePlot].name}`,'story-meta'));
   const current=Town.activity(world,p);
   for(let tick=world.tick+1;tick<=world.tick+48;tick++){
     const next=Town.forecastPlan(world,p,tick);
@@ -672,9 +733,10 @@ function render(){
   renderRail();
   renderTwilight();
   renderSupply();
+  renderBuild();
   if($('moment').open)renderMoment();
   if($('wish').open)renderWish();
-  $('mapHint').textContent=choosingPlace?`给 ${p.name} 点一个目的地`:'点击居民查看档案';
+  $('mapHint').textContent=choosingPlace?`给 ${p.name} 点一个目的地`:buildingType?'点击编号地块确认施工':'点击居民查看档案';
   const moment=TownMoments.active(world);
   const latest=world.events.findLast(e=>e.type!=='town');
   $('mapStory').hidden=choosingPlace||(!latest&&!moment);
@@ -694,8 +756,8 @@ function render(){
 }
 function advance(){
   Town.step(world);
+  if(motion.matches||$('person').options.length!==world.people.length)resetCrowd();
   tickProgress=0;
-  if(motion.matches)resetCrowd();
   save();render();
 }
 function scheduleNext(delay=Math.max(100,(1-tickProgress)*tickDuration())){
@@ -751,7 +813,7 @@ $('homeView').onclick=()=>{
 };
 showHomeMode();
 $('person').onchange=render;
-$('redirect').onclick=()=>{choosingPlace=!choosingPlace;render();};
+$('redirect').onclick=()=>{buildingType=null;choosingPlace=!choosingPlace;render();};
 $('openJournal').onclick=openJournal;
 $('mapStory').onclick=()=>{
   if(TownMoments.active(world))openMoment();
@@ -772,6 +834,8 @@ function openRail(visitor){
   $('rail').showModal();renderRail();scheduleNext();refreshMotion();
   if(visitor)$(`visitor-${visitor}`)?.focus();
 }
+$('openBuild').onclick=()=>{$('build').showModal();renderBuild();scheduleNext();refreshMotion();};
+$('closeBuild').onclick=()=>$('build').close();
 $('openSupply').onclick=openSupply;
 $('closeSupply').onclick=()=>$('supply').close();
 $('zoomOut').onclick=()=>cameraInput.zoomBy(1/1.2);
@@ -789,7 +853,7 @@ function openResidentProfile(){
 }
 $('openWish').onclick=openResidentProfile;
 $('closeWish').onclick=()=>$('wish').close();
-for(const id of ['journal','stories','moment','rail','wish','paper','fate','thread','twilight','supply'])$(id).addEventListener('close',()=>{scheduleNext();refreshMotion();});
+for(const id of ['journal','stories','moment','rail','wish','paper','fate','thread','twilight','supply','build'])$(id).addEventListener('close',()=>{scheduleNext();refreshMotion();});
 $('sound').onclick=async()=>{
   if(audio){await audio.close();audio=null;}else{audio=new AudioContext();await audio.resume();beep();}
   const label=audio?'关闭音效':'开启音效';
@@ -813,7 +877,7 @@ $('import').onchange=async event=>{
     Town.upgrade(data);
     const newWatch=Number.isInteger(data.watchedEvent)?data.watchedEvent:null;
     if(!SaveManager.save(localStorage,KEY,{...data,savedAt:Date.now()},Town.valid))throw new Error();
-    world=data;watched=newWatch;seenStory=world.sequence;pulseSeq=world.sequence;choosingPlace=false;
+    world=data;watched=newWatch;seenStory=world.sequence;pulseSeq=world.sequence;choosingPlace=false;buildingType=null;
     resetCrowd();populateResidents();
     render();$('notice').textContent='已恢复存档。';
   }catch{$('notice').textContent='存档无效或无法写入。';}
@@ -1020,7 +1084,7 @@ function rewind(snap){
   if(!data){showToast('时光回溯','这份快照读不出来了。');return;}
   Town.upgrade(data);
   world=data;watched=Number.isInteger(data.watchedEvent)?data.watchedEvent:null;
-  seenStory=world.sequence;pulseSeq=world.sequence;pulses=[];choosingPlace=false;
+  seenStory=world.sequence;pulseSeq=world.sequence;pulses=[];choosingPlace=false;buildingType=null;
   resetCrowd();populateResidents();save();$('fate').close();render();
   showToast('时光回溯',`回到了${when(world.tick)}。世界会照原样重演，除非你换一种拨法。`);
 }

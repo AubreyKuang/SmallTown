@@ -8,7 +8,7 @@ const TownInteriors=(()=>{
     station:{bounds:[775,408,862,446],door:[818,447],stops:[[787,433],[799,437],[812,433],[825,435],[837,429],[850,436],[788,421],[849,421]]},
     school:{bounds:[670,58,770,92],door:[725,94],stops:[[684,82],[700,84],[716,83],[734,84],[748,82],[761,82],[698,76],[744,76]]}
   };
-  const outdoor=new Set(['walk','stars','recess','play','commute','breadCart']);
+  const outdoor=new Set(['walk','stars','recess','play','commute','breadCart','moveIn']);
   const uses=(place,activity)=>!!rooms[place]&&!outdoor.has(activity);
   const contains=(place,x,y)=>{
     const b=rooms[place]?.bounds;
